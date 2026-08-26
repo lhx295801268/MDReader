@@ -22,8 +22,12 @@ set(UNIT_TESTS
 # own .cpp; any library code a test exercises must be listed here).
 set(TEST_EXTRA_SOURCES_DocumentTest     ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp)
 set(TEST_EXTRA_SOURCES_DocumentLockTest ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp)
-set(TEST_EXTRA_SOURCES_MarkdownRendererTest ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp)
-set(TEST_EXTRA_SOURCES_MarkdownRendererHeadingIdTest ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp)
+set(TEST_EXTRA_SOURCES_MarkdownRendererTest
+    ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
+set(TEST_EXTRA_SOURCES_MarkdownRendererHeadingIdTest
+    ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
 set(TEST_EXTRA_SOURCES_ImageHandlerTest ${CMAKE_SOURCE_DIR}/src/services/ImageHandler.cpp)
 set(TEST_EXTRA_SOURCES_WordCounterTest ${CMAKE_SOURCE_DIR}/src/services/WordCounter.cpp)
 set(TEST_EXTRA_SOURCES_OutlineExtractorTest ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
