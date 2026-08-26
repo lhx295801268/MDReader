@@ -1,7 +1,10 @@
 #pragma once
 #include <QMainWindow>
 #include <QStringList>
+#include <QDateTime>
+#include <QMessageBox>
 #include <memory>
+#include "services/FileWatcher.h"
 
 class QTabWidget;
 class DocumentManager;
@@ -29,6 +32,12 @@ private slots:
     void toggleInfo();
     void onTabChanged(int /*idx*/);
 
+    // Phase 4: FileWatcher → MainWindow bridge. Invoked on the main thread
+    // (FileWatcher bounces through QMetaObject::invokeMethod). Decides
+    // between silent reload and the 3-button conflict modal based on the
+    // Document::dirty() state.
+    void onExternalChange(const QString& path, const QByteArray& bytes);
+
 private:
     void buildUi();
     void loadSettings();
@@ -40,9 +49,15 @@ private:
 
     DocumentTab* currentTab() const;
 
+    // Phase 4: linear scan of tabs_ to find the DocumentTab whose editor is
+    // bound to a document at `path`. Returns nullptr if no match — caller
+    // must tolerate that (e.g. the tab was closed mid-flight).
+    DocumentTab* tabForDocument_byPath(const QString& path) const;
+
     QTabWidget* tabs_ = nullptr;
     DocumentManager* dm_ = nullptr;
     RenderCoordinator* rc_ = nullptr;
+    FileWatcher* fileWatcher_ = nullptr;
     QStringList lastFiles_;
     int currentIndex_ = -1;
     bool outlineVisible_ = true;

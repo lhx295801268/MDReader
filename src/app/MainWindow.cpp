@@ -24,6 +24,10 @@
 #include <QActionGroup>
 #include <QTextCursor>
 #include <QTimer>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QStatusBar>
+#include "services/FileWatcher.h"
 
 namespace {
 constexpr auto kKeyLastFiles       = "session/lastFiles";
@@ -45,6 +49,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     resize(1280, 800);
     dm_ = new DocumentManager(this);
     rc_ = new RenderCoordinator(this);
+    // Phase 4: external-change notifier. Watches each opened document's
+    // path; emits externalModified(path, bytes) after debounce when the file
+    // is rewritten on disk by another process. We react in onExternalChange.
+    fileWatcher_ = new FileWatcher(this);
+    connect(fileWatcher_, &FileWatcher::externalModified,
+            this, &MainWindow::onExternalChange);
     buildUi();
     loadSettings();
     // Defense-in-depth: loadSettings() already drives setMode() via the
@@ -78,6 +88,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         // editor cursor → outline highlight.
         self->wireTabSync(tab);
         self->tabs_->addTab(tab, QFileInfo(doc->path()).fileName());
+        // Phase 4: start watching the file so we can react when something
+        // else rewrites it on disk. Skip empty paths (newDocument path —
+        // those have nothing on disk to watch).
+        if (!doc->path().isEmpty()) self->fileWatcher_->watch(doc->path());
         if (self->tabs_->count() == expectedCount && savedIndex >= 0
             && savedIndex < self->tabs_->count()) {
             self->tabs_->setCurrentIndex(savedIndex);
@@ -292,6 +306,81 @@ void MainWindow::onTabChanged(int) {
 
 DocumentTab* MainWindow::currentTab() const {
     return qobject_cast<DocumentTab*>(tabs_->currentWidget());
+}
+
+DocumentTab* MainWindow::tabForDocument_byPath(const QString& path) const {
+    if (!tabs_) return nullptr;
+    for (int i = 0; i < tabs_->count(); ++i) {
+        auto* tab = qobject_cast<DocumentTab*>(tabs_->widget(i));
+        if (!tab) continue;
+        auto doc = tab->editor()->document();
+        if (doc && doc->path() == path) return tab;
+    }
+    return nullptr;
+}
+
+void MainWindow::onExternalChange(const QString& path, const QByteArray& bytes) {
+    auto* tab = tabForDocument_byPath(path);
+    if (!tab) return;  // tab was closed between FS event and this callback
+    auto doc = tab->editor()->document();
+    if (!doc) return;
+    const QString disk = QString::fromUtf8(bytes);
+
+    // Shared "apply the on-disk content" path used by both the silent
+    // no-conflict branch and the user-confirmed discard/backup branches.
+    // Document::setText marks dirty — acceptable here because the next
+    // save (if any) will overwrite disk with this new content anyway.
+    // We do not call markSaved() because that would lie about whether
+    // the user has actually persisted the disk content themselves.
+    auto reloadFromDisk = [this, tab, doc, disk]() {
+        doc->setText(disk);
+        tab->editor()->setTextDirect(disk);
+        rc_->requestRender(doc->path(), disk, theme_, /*force=*/true);
+    };
+
+    if (!doc->dirty() || doc->text() == disk) {
+        // Either truly clean OR the doc already mirrors disk (race window
+        // between our last save and the FS event). Silent reload.
+        reloadFromDisk();
+        statusBar()->showMessage(tr("Reloaded from disk"), 3000);
+        return;
+    }
+
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Warning);
+    box.setText(tr("File changed on disk: %1").arg(QFileInfo(path).fileName()));
+    box.setInformativeText(tr("How do you want to handle it?"));
+    QPushButton* discard = box.addButton(tr("Discard my edits and reload"),
+                                         QMessageBox::AcceptRole);
+    QPushButton* keep    = box.addButton(tr("Keep my edits"),
+                                         QMessageBox::RejectRole);
+    QPushButton* backup  = box.addButton(tr("Backup then reload"),
+                                         QMessageBox::ActionRole);
+    box.setDefaultButton(discard);
+    box.exec();
+    QAbstractButton* clicked = box.clickedButton();
+    if (clicked == discard) {
+        reloadFromDisk();
+    } else if (clicked == backup) {
+        const QString stamp = QDateTime::currentDateTimeUtc()
+                                  .toString(QStringLiteral("yyyyMMdd-HHmmss"));
+        const QString bak = path + QStringLiteral(".conflict-") + stamp
+                            + QStringLiteral(".md");
+        QFile b(bak);
+        if (b.open(QIODevice::WriteOnly)) {
+            b.write(doc->text().toUtf8());
+            b.close();
+        } else {
+            qWarning("MainWindow::onExternalChange: backup write failed for %s",
+                     qUtf8Printable(bak));
+        }
+        reloadFromDisk();
+        statusBar()->showMessage(tr("Saved backup to %1").arg(bak), 5000);
+    } else {
+        // "Keep my edits" (or dialog dismissed) — stop watching so the
+        // user is not pestered again. They can still re-watch by reopening.
+        fileWatcher_->unwatch(path);
+    }
 }
 
 void MainWindow::loadSettings() {

@@ -12,6 +12,12 @@ public:
     void setShowLineNumbers(bool on);
     bool showLineNumbers() const { return showLineNumbers_; }
 
+    // Bulk-replace editor text from disk (Phase 4 external-reload path).
+    // Distinct from syncFromDocument(): the source string comes from the
+    // caller, not from doc_->text(). The name keeps the intent explicit —
+    // we are forcing a view-only update, not a doc → editor sync round-trip.
+    void setTextDirect(const QString& text) { setPlainText(text); }
+
     // Helpers used by LineNumberArea (a QWidget child defined in the .cpp).
     // Public so the nested LineNumberArea class can call them.
     int lineNumberAreaWidth();
