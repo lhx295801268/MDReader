@@ -4,7 +4,6 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include "ui/PreviewView.h"
-#include "services/MarkdownRenderer.h"
 
 // Integration: a real QWebEngineView loads HTML, we read its rendered DOM
 // via toHtml(), and write that string to disk via PreviewView::exportHtml.
