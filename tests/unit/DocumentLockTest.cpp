@@ -15,7 +15,6 @@ void DocumentLockTest::concurrent_readers_writers() {
     d.setText("seed");
 
     QThread writer1, writer2, reader1, reader2;
-    bool ok = true;
     int corrupted_reads = 0;
 
     auto run_writer = [&]() {
