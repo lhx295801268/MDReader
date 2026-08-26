@@ -1,2 +1,6 @@
-/* 占位主题 — 后续在 Phase 3 替换为真实 Solarized Light 风格 CSS */
-body { font-family: -apple-system, system-ui, sans-serif; color: #586e75; }
+body { background: #fdf6e3; color: #586e75;
+       font: 16px/1.6 -apple-system, sans-serif; max-width: 920px; margin: 24px auto; }
+h1, h2, h3 { color: #657b83; }
+code { background: #eee8d5; color: #586e75; }
+pre  { background: #eee8d5; }
+blockquote { border-left: 4px solid #93a1a1; color: #93a1a1; }

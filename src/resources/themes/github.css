@@ -1,2 +1,13 @@
-/* 占位主题 — 后续在 Phase 3 替换为真实 GitHub 风格 CSS */
-body { font-family: -apple-system, system-ui, sans-serif; }
+body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+       color: #24292e; max-width: 920px; margin: 24px auto; padding: 0 16px; }
+h1, h2, h3, h4, h5, h6 { font-weight: 600; line-height: 1.25; margin-top: 24px; margin-bottom: 16px; }
+h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: .3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: .3em; }
+code, pre { font-family: SFMono-Regular, Menlo, monospace; }
+code { padding: .2em .4em; background: rgba(27,31,35,.05); border-radius: 6px; }
+pre { padding: 16px; background: #f6f8fa; border-radius: 6px; overflow: auto; }
+pre code { background: transparent; }
+blockquote { border-left: 4px solid #dfe2e5; color: #6a737d; padding: 0 1em; margin: 0; }
+table { border-collapse: collapse; }
+table th, table td { border: 1px solid #dfe2e5; padding: 6px 13px; }
+img { max-width: 100%; }

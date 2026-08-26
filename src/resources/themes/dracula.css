@@ -1,2 +1,8 @@
-/* 占位主题 — 后续在 Phase 3 替换为真实 Dracula 风格 CSS */
-body { font-family: -apple-system, system-ui, sans-serif; color: #bd93f9; }
+body { background: #282a36; color: #f8f8f2;
+       font: 16px/1.6 -apple-system, sans-serif; max-width: 920px; margin: 24px auto; }
+h1, h2, h3 { color: #bd93f9; }
+code { background: #44475a; color: #f8f8f2; }
+pre  { background: #44475a; }
+blockquote { border-left: 4px solid #6272a4; color: #6272a4; }
+table th, table td { border: 1px solid #6272a4; }
+a    { color: #8be9fd; }

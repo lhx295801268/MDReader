@@ -1,2 +1,8 @@
-/* 占位主题 — 后续在 Phase 3 替换为真实 GitHub Dark 风格 CSS */
-body { font-family: -apple-system, system-ui, sans-serif; color: #c9d1d9; }
+body { background: #0d1117; color: #c9d1d9;
+       font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+       max-width: 920px; margin: 24px auto; padding: 0 16px; }
+h1, h2 { border-bottom: 1px solid #30363d; }
+code { background: rgba(110,118,129,.4); }
+pre  { background: #161b22; }
+blockquote { border-left: 4px solid #444c56; color: #8b949e; }
+table th, table td { border: 1px solid #3b434b; }

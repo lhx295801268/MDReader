@@ -1,2 +1,6 @@
-/* 占位主题 — 后续在 Phase 3 替换为真实 One Dark 风格 CSS */
-body { font-family: -apple-system, system-ui, sans-serif; color: #abb2bf; }
+body { background: #282c34; color: #abb2bf;
+       font: 16px/1.6 -apple-system, sans-serif; max-width: 920px; margin: 24px auto; }
+h1, h2, h3 { color: #e5c07b; }
+code { background: #3a3f4b; color: #e06c75; }
+pre  { background: #3a3f4b; }
+blockquote { border-left: 4px solid #528bff; color: #5c6370; }
