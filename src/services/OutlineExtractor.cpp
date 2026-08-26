@@ -1,27 +1,38 @@
 #include "services/OutlineExtractor.h"
 #include <QRegularExpression>
+#include <QDebug>
 
 namespace {
+
+// File-scope regexes. QRegularExpression parses + compiles its pattern at
+// construction, so we hoist these out of hot paths (slugify is called per
+// heading; headRe is rebuilt on every extract() call which Phase 2/3 will
+// invoke on debounced edits).
+static const QRegularExpression kSlugStripRe(R"([^a-z0-9一-鿿\s\-])");
+static const QRegularExpression kSlugCollapseWsRe(R"(\s+)");
+
 QString slugify(const QString& s) {
     QString r = s.toLower();
     // Keep ASCII letters/digits, CJK ideographs (basic block), whitespace, hyphens.
-    r.replace(QRegularExpression(R"([^a-z0-9一-鿿\s\-])"), QString());
+    r.replace(kSlugStripRe, QString());
     // Collapse whitespace runs to a single hyphen.
-    r.replace(QRegularExpression(R"(\s+)", QRegularExpression::CaseInsensitiveOption), "-");
+    r.replace(kSlugCollapseWsRe, QStringLiteral("-"));
     return r;
 }
 }  // namespace
 
+static const QRegularExpression kHeadRe(
+    R"(^(#{1,6})\s+(.+?)\s*$)",
+    QRegularExpression::MultilineOption);
+
 QList<OutlineExtractor::Entry>
 OutlineExtractor::extract(const QString& md) {
     QList<Entry> out;
-    QRegularExpression headRe(R"(^(#{1,6})\s+(.+?)\s*$)",
-                              QRegularExpression::MultilineOption);
 
     bool inFence = false;
     int pos = 0;
     int curLine = 1;
-    while (pos <= md.size()) {
+    while (pos < md.size()) {
         // Find end of current line (or end of string).
         int eol = md.indexOf('\n', pos);
         QString lineStr = (eol < 0) ? md.mid(pos) : md.mid(pos, eol - pos);
@@ -31,7 +42,7 @@ OutlineExtractor::extract(const QString& md) {
 
         // Only match headings outside fences.
         if (!inFence) {
-            auto m = headRe.match(lineStr);
+            auto m = kHeadRe.match(lineStr);
             if (m.hasMatch()) {
                 Entry e;
                 e.level = m.captured(1).size();
@@ -46,5 +57,14 @@ OutlineExtractor::extract(const QString& md) {
         pos = eol + 1;
         ++curLine;
     }
+
+    // I1: diagnostic — if the document ends inside a fence, every subsequent
+    // heading is silently dropped. Purely a warning; we still return what we
+    // collected up to this point.
+    if (inFence) {
+        qWarning() << "OutlineExtractor: unclosed code fence at end of document;"
+                   << "headings after the opening fence were ignored.";
+    }
+
     return out;
 }

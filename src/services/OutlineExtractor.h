@@ -5,5 +5,5 @@
 class OutlineExtractor {
 public:
     struct Entry { int level; QString text; int lineNumber; QString slug; };
-    static QList<Entry> extract(const QString& md);
+    [[nodiscard]] static QList<Entry> extract(const QString& md);
 };
