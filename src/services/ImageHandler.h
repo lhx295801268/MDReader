@@ -2,14 +2,10 @@
 #include <QString>
 #include <QByteArray>
 
-// Temporary stub created in Task 8 to satisfy EditorView.cpp's #include
-// so the EditorView translation unit compiles. The .cpp is intentionally
-// NOT created here (and not added to qt_add_executable) — link will fail
-// with "undefined reference to ImageHandler::handle" until Task 9 lands
-// the real implementation.
 class ImageHandler {
 public:
-    static QString handle(const QByteArray& bytes,
-                          const QString& docDir,
-                          const QString& baseName);
+    // 给定字节;写到 <docDir>/<basename>.assets/<sha256-truncated>.png;
+    // 返回相对 docDir 的 markdown 引用路径(以子目录起头,不含 "./")。
+    static QString handle(const QByteArray& bytes, const QString& docDir,
+                          const QString& docBasename);
 };

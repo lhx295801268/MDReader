@@ -10,6 +10,7 @@ set(UNIT_TESTS
     DocumentLockTest
     WorkerThreadTest
     MarkdownRendererTest
+    ImageHandlerTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -17,6 +18,7 @@ set(UNIT_TESTS
 set(TEST_EXTRA_SOURCES_DocumentTest     ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp)
 set(TEST_EXTRA_SOURCES_DocumentLockTest ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp)
 set(TEST_EXTRA_SOURCES_MarkdownRendererTest ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp)
+set(TEST_EXTRA_SOURCES_ImageHandlerTest ${CMAKE_SOURCE_DIR}/src/services/ImageHandler.cpp)
 # (WorkerThread is header-only, no .cpp needed)
 
 # WorkerThreadTest exercises QtConcurrent::run, so it needs Qt6::Concurrent.
