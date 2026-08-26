@@ -13,6 +13,7 @@ set(UNIT_TESTS
     ImageHandlerTest
     RenderFrameDropTest
     WordCounterTest
+    OutlineExtractorTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -22,6 +23,7 @@ set(TEST_EXTRA_SOURCES_DocumentLockTest ${CMAKE_SOURCE_DIR}/src/documents/Docume
 set(TEST_EXTRA_SOURCES_MarkdownRendererTest ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp)
 set(TEST_EXTRA_SOURCES_ImageHandlerTest ${CMAKE_SOURCE_DIR}/src/services/ImageHandler.cpp)
 set(TEST_EXTRA_SOURCES_WordCounterTest ${CMAKE_SOURCE_DIR}/src/services/WordCounter.cpp)
+set(TEST_EXTRA_SOURCES_OutlineExtractorTest ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
 set(TEST_EXTRA_SOURCES_RenderFrameDropTest
     ${CMAKE_SOURCE_DIR}/src/services/RenderCoordinator.cpp
     ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
