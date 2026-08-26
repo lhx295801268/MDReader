@@ -6,6 +6,7 @@ qt_add_executable(mdreader
     services/WorkerThread.h
     services/MarkdownRenderer.h services/MarkdownRenderer.cpp
     services/ImageHandler.h services/ImageHandler.cpp
+    services/RenderCoordinator.h services/RenderCoordinator.cpp
     ui/PreviewView.h ui/PreviewView.cpp
     ui/EditorView.h ui/EditorView.cpp
 )
