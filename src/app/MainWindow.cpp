@@ -35,6 +35,8 @@ constexpr auto kKeySplitterB       = "layout/splitterB";
 constexpr auto kKeySplitterC       = "layout/splitterC";
 constexpr auto kKeyOutlineVisible  = "sidebar/outlineVisible";
 constexpr auto kKeyInfoVisible     = "sidebar/infoVisible";
+constexpr auto kValueLive          = "live";
+constexpr auto kValueManual        = "manual";
 }
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
@@ -44,7 +46,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     rc_ = new RenderCoordinator(this);
     buildUi();
     loadSettings();
-    rc_->setMode(renderMode_ == "manual" ? RenderCoordinator::Manual : RenderCoordinator::Live);
+    // Defense-in-depth: loadSettings() already drives setMode() via the
+    // liveAct_/manualAct_ toggled lambdas; this keeps rc_ consistent
+    // if loadSettings() is later refactored.
+    rc_->setMode(renderMode_ == kValueManual ? RenderCoordinator::Manual : RenderCoordinator::Live);
 
     // Sync toolbar action state with persisted visibility without firing
     // toggle signals (which would otherwise re-set outlineVisible_/infoVisible_
@@ -125,10 +130,11 @@ void MainWindow::buildUi() {
     grp->setExclusive(true);
 
     connect(liveAct_, &QAction::toggled, this, [this](bool on) {
-        if (on) { rc_->setMode(RenderCoordinator::Live); renderMode_ = "live"; }
+        if (on) { rc_->setMode(RenderCoordinator::Live); renderMode_ = kValueLive; }
+        refreshAct_->setEnabled(!on);
     });
     connect(manualAct_, &QAction::toggled, this, [this](bool on) {
-        if (on) { rc_->setMode(RenderCoordinator::Manual); renderMode_ = "manual"; }
+        if (on) { rc_->setMode(RenderCoordinator::Manual); renderMode_ = kValueManual; }
     });
 
     refreshAct_ = tb->addAction("Refresh");
@@ -139,9 +145,6 @@ void MainWindow::buildUi() {
         auto doc = tab->editor()->document();
         if (!doc) return;
         rc_->requestRender(doc->path(), doc->text(), theme_, /*force=*/true);
-    });
-    connect(liveAct_, &QAction::toggled, this, [this](bool on) {
-        refreshAct_->setEnabled(!on);
     });
 
     connect(newAct, &QAction::triggered, this, &MainWindow::newDocument);
@@ -239,7 +242,7 @@ void MainWindow::loadSettings() {
     lastFiles_       = s.value(kKeyLastFiles, QStringList()).toStringList();
     currentIndex_    = s.value(kKeyCurrentIndex, -1).toInt();
     theme_           = s.value(kKeyTheme, "github").toString();
-    renderMode_      = s.value(kKeyRenderMode, "live").toString();
+    renderMode_      = s.value(kKeyRenderMode, kValueLive).toString();
     showLineNumbers_ = s.value(kKeyShowLineNumbers, true).toBool();
     splitterA_state_ = s.value(kKeySplitterA).toByteArray();
     splitterB_state_ = s.value(kKeySplitterB).toByteArray();
@@ -253,9 +256,9 @@ void MainWindow::loadSettings() {
 
     themeMenu_->setCurrent(theme_);
 
-    manualAct_->setChecked(renderMode_ == "manual");
-    liveAct_->setChecked(renderMode_ != "manual");
-    refreshAct_->setEnabled(renderMode_ == "manual");
+    manualAct_->setChecked(renderMode_ == kValueManual);
+    liveAct_->setChecked(renderMode_ != kValueManual);
+    refreshAct_->setEnabled(renderMode_ == kValueManual);
 }
 
 void MainWindow::saveSettings() {
