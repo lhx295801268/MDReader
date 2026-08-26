@@ -9,12 +9,14 @@ set(UNIT_TESTS
     DocumentTest
     DocumentLockTest
     WorkerThreadTest
+    MarkdownRendererTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
 # own .cpp; any library code a test exercises must be listed here).
 set(TEST_EXTRA_SOURCES_DocumentTest     ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp)
 set(TEST_EXTRA_SOURCES_DocumentLockTest ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp)
+set(TEST_EXTRA_SOURCES_MarkdownRendererTest ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp)
 # (WorkerThread is header-only, no .cpp needed)
 
 # WorkerThreadTest exercises QtConcurrent::run, so it needs Qt6::Concurrent.
@@ -22,15 +24,27 @@ set(TEST_EXTRA_SOURCES_DocumentLockTest ${CMAKE_SOURCE_DIR}/src/documents/Docume
 # the loop expands ${TEST_EXTRA_LIBS_${test_name}} at config time.
 set(TEST_EXTRA_LIBS_WorkerThreadTest Qt6::Concurrent)
 
+# MarkdownRendererTest uses cmark-gfm's GFM table extension; the registration
+# function lives in libcmark-gfm-extensions_static. QThread::create is in
+# Qt6::Core (already linked in the foreach), no Qt6::Concurrent needed.
+set(TEST_EXTRA_LIBS_MarkdownRendererTest libcmark-gfm-extensions_static)
+
 foreach(test_name ${UNIT_TESTS})
     qt_add_executable(${test_name} ${test_name}.cpp ${TEST_EXTRA_SOURCES_${test_name}})
+    # libcmark-gfm_static must be listed AFTER any extension libs that depend
+    # on it (libcmark-gfm-extensions_static pulls in arena.c via
+    # cmark_arena_push/pop). With static libs the linker scans left-to-right
+    # and only pulls objects that resolve currently-undefined symbols, so
+    # core must be last to satisfy extension references.
     target_link_libraries(${test_name} PRIVATE
-        Qt6::Core Qt6::Test libcmark-gfm_static ${TEST_EXTRA_LIBS_${test_name}})
+        Qt6::Core Qt6::Test ${TEST_EXTRA_LIBS_${test_name}} libcmark-gfm_static)
     # cmark-gfm generates headers (cmark-gfm_export.h, cmark-gfm_version.h,
     # config.h) into BINARY_DIR; the source headers live in SOURCE_DIR/src.
+    # cmark-gfm-core-extensions.h lives in SOURCE_DIR/extensions.
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${cmark-gfm_SOURCE_DIR}/src
+        ${cmark-gfm_SOURCE_DIR}/extensions
         ${cmark-gfm_BINARY_DIR}/src)
     add_test(NAME unit_${test_name} COMMAND ${test_name})
 endforeach()
