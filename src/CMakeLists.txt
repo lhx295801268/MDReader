@@ -3,6 +3,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Concurrent)
 qt_add_executable(mdreader
     app/main.cpp
     documents/Document.h documents/Document.cpp
+    documents/DocumentManager.h documents/DocumentManager.cpp
     services/WorkerThread.h
     services/MarkdownRenderer.h services/MarkdownRenderer.cpp
     services/ImageHandler.h services/ImageHandler.cpp
