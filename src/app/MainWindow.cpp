@@ -6,6 +6,7 @@
 #include "ui/PreviewView.h"
 #include "ui/OutlineView.h"
 #include "ui/InfoView.h"
+#include "ui/ThemeMenu.h"
 #include "services/RenderCoordinator.h"
 #include "services/WordCounter.h"
 #include "services/OutlineExtractor.h"
@@ -97,6 +98,20 @@ void MainWindow::buildUi() {
     outlineAct_->setCheckable(true); outlineAct_->setChecked(true);
     infoAct_ = tb->addAction("Info");
     infoAct_->setCheckable(true); infoAct_->setChecked(true);
+
+    themeMenu_ = new ThemeMenu(this);
+    auto* themeBtn = tb->addAction("Theme");
+    themeBtn->setMenu(themeMenu_);
+    connect(themeMenu_, &ThemeMenu::themeSelected, this, [this](QString t) {
+        theme_ = t;
+        for (int i = 0; i < tabs_->count(); ++i) {
+            auto* tab = qobject_cast<DocumentTab*>(tabs_->widget(i));
+            if (!tab) continue;
+            auto doc = tab->editor()->document();
+            if (!doc) continue;
+            rc_->requestRender(doc->path(), doc->text(), t);
+        }
+    });
 
     connect(newAct, &QAction::triggered, this, &MainWindow::newDocument);
     connect(openAct, &QAction::triggered, this, &MainWindow::openDocument);
@@ -204,6 +219,8 @@ void MainWindow::loadSettings() {
     for (const auto& f : lastFiles_) {
         if (QFile::exists(f)) dm_->openFile(f);
     }
+
+    themeMenu_->setCurrent(theme_);
 }
 
 void MainWindow::saveSettings() {

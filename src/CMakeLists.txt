@@ -15,6 +15,7 @@ qt_add_executable(mdreader
     ui/InfoView.h ui/InfoView.cpp
     ui/OutlineView.h ui/OutlineView.cpp
     ui/DocumentTab.h ui/DocumentTab.cpp
+    ui/ThemeMenu.h ui/ThemeMenu.cpp
 )
 
 qt_add_resources(mdreader "mdreader_resources"

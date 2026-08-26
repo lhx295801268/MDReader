@@ -7,6 +7,7 @@ class QTabWidget;
 class DocumentManager;
 class DocumentTab;
 class RenderCoordinator;
+class ThemeMenu;
 class QAction;
 
 class MainWindow : public QMainWindow {
@@ -47,6 +48,7 @@ private:
     bool showLineNumbers_ = true;
     QAction* outlineAct_ = nullptr;
     QAction* infoAct_ = nullptr;
+    ThemeMenu* themeMenu_ = nullptr;
     QByteArray splitterA_state_;
     QByteArray splitterB_state_;
     QByteArray splitterC_state_;
