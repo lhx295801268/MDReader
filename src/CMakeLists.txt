@@ -10,6 +10,8 @@ qt_add_executable(mdreader
     services/OutlineExtractor.h services/OutlineExtractor.cpp
     ui/PreviewView.h ui/PreviewView.cpp
     ui/EditorView.h ui/EditorView.cpp
+    ui/InfoView.h ui/InfoView.cpp
+    ui/OutlineView.h ui/OutlineView.cpp
 )
 
 target_link_libraries(mdreader PRIVATE
