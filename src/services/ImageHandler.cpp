@@ -2,7 +2,6 @@
 #include <QCryptographicHash>
 #include <QFile>
 #include <QDir>
-#include <QFileInfo>
 
 QString ImageHandler::handle(const QByteArray& bytes, const QString& docDir,
                              const QString& docBasename) {
