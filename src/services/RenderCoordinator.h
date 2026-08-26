@@ -30,7 +30,7 @@ public:
 
 signals:
     void renderSucceeded(const QString& html);
-    void renderFailed(const QString& message);
+    void renderFailed(const QString& message);  // Phase 3 will emit on MarkdownRenderer error
 
 private slots:
     void onTimerTimeout();

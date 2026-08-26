@@ -1,7 +1,6 @@
 #include "services/RenderCoordinator.h"
 #include "services/WorkerThread.h"
 #include "services/MarkdownRenderer.h"
-#include <QCoreApplication>
 #include <QTimer>
 
 namespace {
@@ -14,13 +13,14 @@ MarkdownRenderer* renderer() {
 RenderCoordinator::RenderCoordinator(QObject* parent) : QObject(parent) {}
 
 void RenderCoordinator::bind(const QString& docId, PreviewView* preview) {
+    unbind(docId);  // 清理旧绑定,防止旧 QTimer 持续触发
     Pending p;
     p.preview = preview;
     p.timer = new QTimer(this);
     p.timer->setSingleShot(true);
     p.timer->setInterval(250);
     connect(p.timer, &QTimer::timeout, this, &RenderCoordinator::onTimerTimeout);
-    p.frameId = nextFrameId_++;
+    // p.frameId 保持默认 0;requestRender 在 timer 触发前会先赋值。
     pendings_.insert(docId, p);
 }
 
@@ -55,14 +55,18 @@ void RenderCoordinator::onTimerTimeout() {
         const QString md = it->markdown;
         const QString theme = it->theme;
         // 在 worker 线程渲染;回到主线程前再次比对 frameId,落后就丢弃。
-        runOnWorker([this, docId, frameAtKickoff, md, theme, preview]() {
+        // 用 QPointer 守护 coordinator 生命周期,防止在 worker bounce 期间
+        // 析构后回到主线程对 dangling this 触发 UB。
+        QPointer<RenderCoordinator> self = this;
+        runOnWorker([docId, frameAtKickoff, md, theme, preview, self]() {
             QString html = renderer()->render(md, theme);
-            postToMain([this, docId, frameAtKickoff, html, preview]() {
-                auto it = pendings_.find(docId);
-                if (it == pendings_.end()) return;          // 已 unbind
+            postToMain([docId, frameAtKickoff, html, preview, self]() {
+                if (!self) return;                          // coordinator 已析构
+                auto it = self->pendings_.find(docId);
+                if (it == self->pendings_.end()) return;    // 已 unbind
                 if (it->frameId != frameAtKickoff) return;  // 过期帧,丢
                 if (preview) preview->setMarkdownHtml(html);
-                emit renderSucceeded(html);
+                emit self->renderSucceeded(html);
             });
         });
         break;
