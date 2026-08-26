@@ -11,7 +11,7 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets WebEngineWidgets)
 qt_standard_project_setup()
 
 include(FetchContent)

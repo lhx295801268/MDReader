@@ -5,10 +5,12 @@ qt_add_executable(mdreader
     documents/Document.h documents/Document.cpp
     services/WorkerThread.h
     services/MarkdownRenderer.h services/MarkdownRenderer.cpp
+    ui/PreviewView.h ui/PreviewView.cpp
 )
 
 target_link_libraries(mdreader PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Concurrent
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::WebEngineWidgets
+    Qt6::Concurrent
     libcmark-gfm-extensions_static libcmark-gfm_static
 )
 
