@@ -9,6 +9,7 @@ class FileWatcherDebounceTest : public QObject {
     Q_OBJECT
 private slots:
     void five_events_within_300ms_emit_once();
+    void unwatch_before_debounce_suppresses_emit();
 };
 
 void FileWatcherDebounceTest::five_events_within_300ms_emit_once() {
@@ -25,6 +26,20 @@ void FileWatcherDebounceTest::five_events_within_300ms_emit_once() {
     }
     QTest::qWait(800);
     QCOMPARE(spy.count(), 1);
+}
+
+void FileWatcherDebounceTest::unwatch_before_debounce_suppresses_emit() {
+    QTemporaryDir tmp;
+    QString path = tmp.path() + "/y.md";
+    QFile f(path); f.open(QIODevice::WriteOnly); f.write("a"); f.close();
+
+    FileWatcher fw;
+    QSignalSpy spy(&fw, &FileWatcher::externalModified);
+    fw.watch(path);
+    QFile g(path); g.open(QIODevice::WriteOnly); g.write("b"); g.close();
+    fw.unwatch(path);  // cancels before debounce timer fires
+    QTest::qWait(800);
+    QCOMPARE(spy.count(), 0);
 }
 
 QTEST_MAIN(FileWatcherDebounceTest)

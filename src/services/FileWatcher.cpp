@@ -42,6 +42,7 @@ void FileWatcher::onDebounceTimeout() {
                 QPointer<FileWatcher> self(this);
                 QMetaObject::invokeMethod(this, [self, path, bytes]() {
                     if (!self) return;
+                    if (!self->entries_.contains(path)) return;   // unwatched while worker was in flight
                     emit self->externalModified(path, bytes);
                 }, Qt::QueuedConnection);
             });
