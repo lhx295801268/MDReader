@@ -1,0 +1,35 @@
+cmake_minimum_required(VERSION 3.21)
+project(MDReader VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets)
+qt_standard_project_setup()
+
+add_subdirectory(src)
+
+option(BUILD_TESTING "Build tests" OFF)
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(tests/unit)
+endif()
+
+include(CPack)
+set(CPACK_PACKAGE_NAME "MDReader")
+set(CPACK_PACKAGE_VERSION "0.1.0")
+set(CPACK_GENERATOR "DEB")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_PACKAGE_FILE_NAME "MDReader-0.1.0-Linux.deb")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6core6, libqt6gui6, libqt6widgets6")
+set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "Markdown reader/editor")
