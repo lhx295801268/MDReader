@@ -11,6 +11,7 @@ qt_add_executable(mdreader
     services/RenderCoordinator.h services/RenderCoordinator.cpp
     services/OutlineExtractor.h services/OutlineExtractor.cpp
     services/WordCounter.h services/WordCounter.cpp
+    services/FileWatcher.h services/FileWatcher.cpp
     ui/PreviewView.h ui/PreviewView.cpp
     ui/EditorView.h ui/EditorView.cpp
     ui/InfoView.h ui/InfoView.cpp

@@ -15,6 +15,7 @@ set(UNIT_TESTS
     RenderFrameDropTest
     WordCounterTest
     OutlineExtractorTest
+    FileWatcherDebounceTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -26,6 +27,7 @@ set(TEST_EXTRA_SOURCES_MarkdownRendererHeadingIdTest ${CMAKE_SOURCE_DIR}/src/ser
 set(TEST_EXTRA_SOURCES_ImageHandlerTest ${CMAKE_SOURCE_DIR}/src/services/ImageHandler.cpp)
 set(TEST_EXTRA_SOURCES_WordCounterTest ${CMAKE_SOURCE_DIR}/src/services/WordCounter.cpp)
 set(TEST_EXTRA_SOURCES_OutlineExtractorTest ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
+set(TEST_EXTRA_SOURCES_FileWatcherDebounceTest ${CMAKE_SOURCE_DIR}/src/services/FileWatcher.cpp)
 set(TEST_EXTRA_SOURCES_RenderFrameDropTest
     ${CMAKE_SOURCE_DIR}/src/services/RenderCoordinator.cpp
     ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
@@ -44,6 +46,7 @@ set(TEST_EXTRA_SOURCES_RenderFrameDropTest
 # Must be set BEFORE the foreach loop, since target_link_libraries inside
 # the loop expands ${TEST_EXTRA_LIBS_${test_name}} at config time.
 set(TEST_EXTRA_LIBS_WorkerThreadTest Qt6::Concurrent)
+set(TEST_EXTRA_LIBS_FileWatcherDebounceTest Qt6::Concurrent)
 
 # MarkdownRendererTest uses cmark-gfm's GFM table extension; the registration
 # function lives in libcmark-gfm-extensions_static. QThread::create is in
