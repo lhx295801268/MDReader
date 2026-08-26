@@ -2,8 +2,6 @@
 #include <QRegularExpression>
 #include <QDebug>
 
-namespace {
-
 // File-scope regexes. QRegularExpression parses + compiles its pattern at
 // construction, so we hoist these out of hot paths (slugify is called per
 // heading; headRe is rebuilt on every extract() call which Phase 2/3 will
@@ -11,7 +9,11 @@ namespace {
 static const QRegularExpression kSlugStripRe(R"([^a-z0-9一-鿿\s\-])");
 static const QRegularExpression kSlugCollapseWsRe(R"(\s+)");
 
-QString slugify(const QString& s) {
+static const QRegularExpression kHeadRe(
+    R"(^(#{1,6})\s+(.+?)\s*$)",
+    QRegularExpression::MultilineOption);
+
+QString OutlineExtractor::slugify(const QString& s) {
     QString r = s.toLower();
     // Keep ASCII letters/digits, CJK ideographs (basic block), whitespace, hyphens.
     r.replace(kSlugStripRe, QString());
@@ -19,11 +21,6 @@ QString slugify(const QString& s) {
     r.replace(kSlugCollapseWsRe, QStringLiteral("-"));
     return r;
 }
-}  // namespace
-
-static const QRegularExpression kHeadRe(
-    R"(^(#{1,6})\s+(.+?)\s*$)",
-    QRegularExpression::MultilineOption);
 
 QList<OutlineExtractor::Entry>
 OutlineExtractor::extract(const QString& md) {

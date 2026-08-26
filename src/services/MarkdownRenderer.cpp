@@ -1,4 +1,5 @@
 #include "services/MarkdownRenderer.h"
+#include "services/OutlineExtractor.h"
 #include <cmark-gfm.h>
 #include <cmark-gfm-core-extensions.h>
 #include <cstdlib>
@@ -70,17 +71,9 @@ QString MarkdownRenderer::render(const QString& markdown, const QString& themeNa
 QString MarkdownRenderer::wrapHtml(const QString& bodyHtml, const QString& themeName) {
     // Task 20: inject id="<slug>" on h1..h6 so the preview's JS scroll
     // (OutlineView::headingActivated → page().runJavaScript) and the
-    // editor's link targets resolve to the right block. Slug rules must
-    // match OutlineExtractor::slugify so that outline entries map 1:1 to
-    // preview anchors.
-    static const QRegularExpression kSlugStripRe(R"([^a-z0-9一-鿿\s\-])");
-    static const QRegularExpression kSlugCollapseWsRe(R"(\s+)");
-    auto fixSlug = [](QString s) {
-        s = s.toLower();
-        s.replace(kSlugStripRe, QString());
-        s.replace(kSlugCollapseWsRe, QStringLiteral("-"));
-        return s;
-    };
+    // editor's link targets resolve to the right block. Slug rules live in
+    // OutlineExtractor::slugify so outline entries and preview anchors stay
+    // in lockstep — do NOT duplicate the regex here.
     // Match opening tag (with possibly existing attrs) + inner text + close.
     // Greedy single-line match (cmark emits each heading on its own line).
     static const QRegularExpression kHeadingRe(
@@ -94,7 +87,7 @@ QString MarkdownRenderer::wrapHtml(const QString& bodyHtml, const QString& theme
         const QString tag = m.captured(1);
         const QString attrs = m.captured(2);
         const QString inner = m.captured(3);
-        const QString slug = fixSlug(inner);
+        const QString slug = OutlineExtractor::slugify(inner);
         processed += QString("<%1 id=\"%2\"%3>%4</%1>")
                          .arg(tag, slug, attrs, inner);
         last = m.capturedEnd();
