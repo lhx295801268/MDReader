@@ -11,6 +11,8 @@ set(UNIT_TESTS
 foreach(test_name ${UNIT_TESTS})
     qt_add_executable(${test_name} ${test_name}.cpp)
     target_link_libraries(${test_name} PRIVATE Qt6::Core Qt6::Test libcmark-gfm_static)
+    # cmark-gfm generates headers (cmark-gfm_export.h, cmark-gfm_version.h,
+    # config.h) into BINARY_DIR; the source headers live in SOURCE_DIR/src.
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${cmark-gfm_SOURCE_DIR}/src
