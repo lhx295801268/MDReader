@@ -6,6 +6,9 @@
 
 class Document;
 
+/// Owns Document instances on the main thread. File I/O is dispatched to
+/// WorkerThread; all mutations of `docs_` happen on the main thread via
+/// postToMain. Lifetimes are guarded with QPointer to survive shutdown races.
 class DocumentManager : public QObject {
     Q_OBJECT
 public:

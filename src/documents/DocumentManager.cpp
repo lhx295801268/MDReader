@@ -3,22 +3,29 @@
 #include "services/WorkerThread.h"
 #include <QFile>
 #include <QFileInfo>
+#include <QPointer>
 #include <QTextStream>
 
 DocumentManager::DocumentManager(QObject* parent) : QObject(parent) {}
 
 void DocumentManager::openFile(const QString& path) {
-    QtConcurrent::run(QThreadPool::globalInstance(), [this, path] {
+    QPointer<DocumentManager> self = this;
+    (void)QtConcurrent::run(QThreadPool::globalInstance(), [self, path] {
         QFile f(path);
-        if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+        if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            qWarning("DocumentManager::openFile: cannot open %s: %s",
+                     qUtf8Printable(path), qUtf8Printable(f.errorString()));
+            return;
+        }
         QTextStream in(&f); in.setEncoding(QStringConverter::Utf8);
         const QString content = in.readAll();
         QFileInfo fi(path);
-        postToMain([this, content, path, fi]() mutable {
+        postToMain([self, fi, content]() mutable {
+            if (!self) return;   // DocumentManager destroyed mid-flight
             auto doc = std::make_shared<Document>(fi.absoluteFilePath(), content);
-            docs_ << doc;
-            emit documentAdded(doc);
-            emit documentLoaded(doc);
+            self->docs_ << doc;
+            emit self->documentAdded(doc);
+            emit self->documentLoaded(doc);
         });
     });
 }
@@ -33,7 +40,11 @@ std::shared_ptr<Document> DocumentManager::addNew(const QString& initialText) {
 bool DocumentManager::saveDocument(std::shared_ptr<Document> doc) {
     if (!doc) return false;
     QFile f(doc->path());
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) return false;
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        qWarning("DocumentManager::saveDocument: cannot open %s: %s",
+                 qUtf8Printable(doc->path()), qUtf8Printable(f.errorString()));
+        return false;
+    }
     QTextStream out(&f); out.setEncoding(QStringConverter::Utf8);
     out << doc->text();
     doc->markSaved();
