@@ -34,6 +34,10 @@ private:
     void loadSettings();
     void saveSettings();
 
+    // Task 20: connect outline ↔ editor ↔ preview bidirectional sync for a
+    // newly-created tab. Called by both documentLoaded and newDocument.
+    void wireTabSync(DocumentTab* tab);
+
     DocumentTab* currentTab() const;
 
     QTabWidget* tabs_ = nullptr;

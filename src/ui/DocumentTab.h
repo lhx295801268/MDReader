@@ -2,6 +2,8 @@
 #include <QWidget>
 #include <QSplitter>
 #include <memory>
+#include "services/OutlineExtractor.h"
+#include "services/WordCounter.h"
 
 class Document;
 class EditorView;
@@ -24,6 +26,14 @@ public:
     QSplitter* splitterA() const { return splitterA_; }
     QSplitter* splitterB() const { return splitterB_; }
     QSplitter* splitterC() const { return splitterC_; }
+
+public slots:
+    // Task 20: invoked by RenderCoordinator on the main thread after each
+    // successful render. Updates the outline tree and word/char/para/heading
+    // counters. Pure UI update — no thread affinity concerns beyond the
+    // caller being on the main thread.
+    void onContentUpdated(const QList<OutlineExtractor::Entry>& entries,
+                          const WordCounter::Stats& stats);
 
 private:
     void buildUi();

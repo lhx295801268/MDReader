@@ -6,6 +6,7 @@
 #include "ui/PreviewView.h"
 
 class QTimer;
+class DocumentTab;
 
 class RenderCoordinator : public QObject {
     Q_OBJECT
@@ -15,7 +16,14 @@ public:
 
     explicit RenderCoordinator(QObject* parent = nullptr);
 
+    // Legacy overload: callers that don't need outline/stats refresh
+    // (e.g. tests) can still bind without a tab.
     void bind(const QString& docId, PreviewView* preview);
+    // Task 20: full overload. Stores `tab` so the worker → main bounce can
+    // dispatch the freshly-computed outline entries + word stats back to
+    // the DocumentTab. Tab is held via QPointer and only ever touched on
+    // the main thread, so no locking is needed.
+    void bind(const QString& docId, PreviewView* preview, DocumentTab* tab);
     void unbind(const QString& docId);
 
     void requestRender(const QString& docId, const QString& markdown,
@@ -38,6 +46,7 @@ private slots:
 private:
     struct Pending {
         QPointer<PreviewView> preview;
+        QPointer<DocumentTab> tab;  // Task 20: nullptr for legacy bind()
         QString markdown;
         QString theme;
         quint64 frameId = 0;

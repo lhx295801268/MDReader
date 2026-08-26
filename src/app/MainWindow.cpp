@@ -22,6 +22,7 @@
 #include <QFileInfo>
 #include <QPointer>
 #include <QActionGroup>
+#include <QTextCursor>
 #include <QTimer>
 
 namespace {
@@ -70,7 +71,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             [self, savedIndex, expectedCount](std::shared_ptr<Document> doc) {
         if (!self) return;
         auto* tab = new DocumentTab(doc);
-        self->rc_->bind(doc->path(), tab->preview());
+        // Task 20: pass the tab so RenderCoordinator can dispatch outline +
+        // stats back to it after each render.
+        self->rc_->bind(doc->path(), tab->preview(), tab);
+        // Outline click → editor cursor + preview scroll;
+        // editor cursor → outline highlight.
+        self->wireTabSync(tab);
         self->tabs_->addTab(tab, QFileInfo(doc->path()).fileName());
         if (self->tabs_->count() == expectedCount && savedIndex >= 0
             && savedIndex < self->tabs_->count()) {
@@ -161,8 +167,59 @@ void MainWindow::buildUi() {
 void MainWindow::newDocument() {
     auto doc = dm_->addNew();
     auto* tab = new DocumentTab(doc);
-    rc_->bind(doc->path(), tab->preview());
+    rc_->bind(doc->path(), tab->preview(), tab);
+    wireTabSync(tab);
     tabs_->addTab(tab, "Untitled");
+}
+
+void MainWindow::wireTabSync(DocumentTab* tab) {
+    if (!tab) return;
+    // Outline click → move editor cursor to the heading's source line and
+    // scroll the preview's matching <hN id="slug"> into view. The editor
+    // and preview are siblings inside the tab; capture `tab` (not `this`)
+    // to avoid dangling if MainWindow is destroyed before the tab.
+    connect(tab->outline(), &OutlineView::headingActivated, tab,
+            [tab](int line, const QString& slug) {
+        auto* editor = tab->editor();
+        auto* preview = tab->preview();
+        if (!editor || !preview) return;
+        QTextCursor cursor = editor->textCursor();
+        cursor.movePosition(QTextCursor::Start);
+        // line is 1-indexed; move down (line - 1) blocks. line <= 0 → no-op.
+        for (int i = 0; i < line - 1; ++i) {
+            cursor.movePosition(QTextCursor::NextBlock);
+        }
+        editor->setTextCursor(cursor);
+        const QString js = QStringLiteral(
+            "var el=document.getElementById('%1');"
+            "if(el){el.scrollIntoView();}"
+            ).arg(slug);
+        preview->page()->runJavaScript(js);
+    });
+
+    // Editor cursor moved → highlight the last heading at-or-before the
+    // current line in the outline. We re-extract on every cursor move
+    // (cheap for typical doc sizes) so we always have up-to-date line
+    // numbers without tracking edits ourselves.
+    connect(tab->editor(), &QPlainTextEdit::cursorPositionChanged, tab,
+            [tab]() {
+        auto* editor = tab->editor();
+        auto* outline = tab->outline();
+        if (!editor || !outline) return;
+        auto* model = outline->model();
+        if (!model) return;
+        const auto entries = OutlineExtractor::extract(editor->toPlainText());
+        const int line = editor->textCursor().blockNumber() + 1;
+        int matchIdx = -1;
+        for (int i = 0; i < entries.size(); ++i) {
+            if (entries[i].lineNumber <= line) matchIdx = i;
+            else break;
+        }
+        if (matchIdx >= 0) {
+            const QModelIndex idx = model->index(matchIdx, 0);
+            outline->setCurrentIndex(idx);
+        }
+    });
 }
 
 void MainWindow::openDocument() {

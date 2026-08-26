@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <mutex>
 #include <QFile>
+#include <QRegularExpression>
 
 namespace {
 QString loadQrcOrEmpty(const QString& path) {
@@ -67,6 +68,40 @@ QString MarkdownRenderer::render(const QString& markdown, const QString& themeNa
 }
 
 QString MarkdownRenderer::wrapHtml(const QString& bodyHtml, const QString& themeName) {
+    // Task 20: inject id="<slug>" on h1..h6 so the preview's JS scroll
+    // (OutlineView::headingActivated → page().runJavaScript) and the
+    // editor's link targets resolve to the right block. Slug rules must
+    // match OutlineExtractor::slugify so that outline entries map 1:1 to
+    // preview anchors.
+    static const QRegularExpression kSlugStripRe(R"([^a-z0-9一-鿿\s\-])");
+    static const QRegularExpression kSlugCollapseWsRe(R"(\s+)");
+    auto fixSlug = [](QString s) {
+        s = s.toLower();
+        s.replace(kSlugStripRe, QString());
+        s.replace(kSlugCollapseWsRe, QStringLiteral("-"));
+        return s;
+    };
+    // Match opening tag (with possibly existing attrs) + inner text + close.
+    // Greedy single-line match (cmark emits each heading on its own line).
+    static const QRegularExpression kHeadingRe(
+        R"(<(h[1-6])([^>]*)>([^<]+)</\1>)");
+    QString processed;
+    int last = 0;
+    auto it = kHeadingRe.globalMatch(bodyHtml);
+    while (it.hasNext()) {
+        auto m = it.next();
+        processed += bodyHtml.mid(last, m.capturedStart() - last);
+        const QString tag = m.captured(1);
+        const QString attrs = m.captured(2);
+        const QString inner = m.captured(3);
+        const QString slug = fixSlug(inner);
+        processed += QString("<%1 id=\"%2\"%3>%4</%1>")
+                         .arg(tag, slug, attrs, inner);
+        last = m.capturedEnd();
+    }
+    if (processed.isEmpty()) processed = bodyHtml;
+    else processed += bodyHtml.mid(last);
+
     const QString themeCss = loadQrcOrEmpty(QStringLiteral(":/themes/%1.css").arg(themeName));
     return QStringLiteral(
         "<!doctype html><html><head>"
@@ -81,5 +116,5 @@ QString MarkdownRenderer::wrapHtml(const QString& bodyHtml, const QString& theme
         "});"
         "</script>"
         "</head><body>%2</body></html>"
-    ).arg(themeCss, bodyHtml);
+    ).arg(themeCss, processed);
 }

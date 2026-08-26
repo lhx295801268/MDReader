@@ -64,3 +64,11 @@ EditorView* DocumentTab::editor() const { return editor_; }
 PreviewView* DocumentTab::preview() const { return preview_; }
 OutlineView* DocumentTab::outline() const { return outline_; }
 InfoView* DocumentTab::info() const { return info_; }
+
+void DocumentTab::onContentUpdated(const QList<OutlineExtractor::Entry>& entries,
+                                   const WordCounter::Stats& stats) {
+    // Called on the main thread by RenderCoordinator's postToMain bounce.
+    // Refresh both panels from the freshly-computed snapshot.
+    if (outline_) outline_->setOutline(entries);
+    if (info_) info_->setStats(stats.words, stats.chars, stats.paragraphs, stats.headings);
+}

@@ -1,6 +1,9 @@
 #include "services/RenderCoordinator.h"
 #include "services/WorkerThread.h"
 #include "services/MarkdownRenderer.h"
+#include "services/OutlineExtractor.h"
+#include "services/WordCounter.h"
+#include "ui/DocumentTab.h"
 #include <QTimer>
 
 namespace {
@@ -13,9 +16,15 @@ MarkdownRenderer* renderer() {
 RenderCoordinator::RenderCoordinator(QObject* parent) : QObject(parent) {}
 
 void RenderCoordinator::bind(const QString& docId, PreviewView* preview) {
+    // Legacy shim — no tab means no outline/stats dispatch.
+    bind(docId, preview, nullptr);
+}
+
+void RenderCoordinator::bind(const QString& docId, PreviewView* preview, DocumentTab* tab) {
     unbind(docId);  // 清理旧绑定,防止旧 QTimer 持续触发
     Pending p;
     p.preview = preview;
+    p.tab = tab;
     p.timer = new QTimer(this);
     p.timer->setSingleShot(true);
     p.timer->setInterval(250);
@@ -51,21 +60,27 @@ void RenderCoordinator::onTimerTimeout() {
         if (it->timer != t) continue;
         const QString docId = it.key();
         const QPointer<PreviewView> preview = it->preview;
+        const QPointer<DocumentTab> tab = it->tab;
         const quint64 frameAtKickoff = it->frameId;
         const QString md = it->markdown;
         const QString theme = it->theme;
         // 在 worker 线程渲染;回到主线程前再次比对 frameId,落后就丢弃。
         // 用 QPointer 守护 coordinator 生命周期,防止在 worker bounce 期间
         // 析构后回到主线程对 dangling this 触发 UB。
+        // Task 20: outline/stats 也是纯函数,一起放到 worker 上算;最终的
+        // tab 回调仍走 postToMain 回到主线程。
         QPointer<RenderCoordinator> self = this;
-        runOnWorker([docId, frameAtKickoff, md, theme, preview, self]() {
+        runOnWorker([docId, frameAtKickoff, md, theme, preview, tab, self]() {
             QString html = renderer()->render(md, theme);
-            postToMain([docId, frameAtKickoff, html, preview, self]() {
+            auto entries = OutlineExtractor::extract(md);
+            auto stats = WordCounter::count(md);
+            postToMain([docId, frameAtKickoff, html, entries, stats, preview, tab, self]() {
                 if (!self) return;                          // coordinator 已析构
                 auto it = self->pendings_.find(docId);
                 if (it == self->pendings_.end()) return;    // 已 unbind
                 if (it->frameId != frameAtKickoff) return;  // 过期帧,丢
                 if (preview) preview->setMarkdownHtml(html);
+                if (tab) tab->onContentUpdated(entries, stats);
                 emit self->renderSucceeded(html);
             });
         });

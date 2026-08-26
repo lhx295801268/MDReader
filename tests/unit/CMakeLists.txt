@@ -10,6 +10,7 @@ set(UNIT_TESTS
     DocumentLockTest
     WorkerThreadTest
     MarkdownRendererTest
+    MarkdownRendererHeadingIdTest
     ImageHandlerTest
     RenderFrameDropTest
     WordCounterTest
@@ -21,13 +22,22 @@ set(UNIT_TESTS
 set(TEST_EXTRA_SOURCES_DocumentTest     ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp)
 set(TEST_EXTRA_SOURCES_DocumentLockTest ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp)
 set(TEST_EXTRA_SOURCES_MarkdownRendererTest ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp)
+set(TEST_EXTRA_SOURCES_MarkdownRendererHeadingIdTest ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp)
 set(TEST_EXTRA_SOURCES_ImageHandlerTest ${CMAKE_SOURCE_DIR}/src/services/ImageHandler.cpp)
 set(TEST_EXTRA_SOURCES_WordCounterTest ${CMAKE_SOURCE_DIR}/src/services/WordCounter.cpp)
 set(TEST_EXTRA_SOURCES_OutlineExtractorTest ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
 set(TEST_EXTRA_SOURCES_RenderFrameDropTest
     ${CMAKE_SOURCE_DIR}/src/services/RenderCoordinator.cpp
     ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
-    ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp)
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/WordCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/ImageHandler.cpp
+    ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/DocumentTab.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/EditorView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/OutlineView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/InfoView.cpp)
 # (WorkerThread is header-only, no .cpp needed)
 
 # WorkerThreadTest exercises QtConcurrent::run, so it needs Qt6::Concurrent.
@@ -39,6 +49,7 @@ set(TEST_EXTRA_LIBS_WorkerThreadTest Qt6::Concurrent)
 # function lives in libcmark-gfm-extensions_static. QThread::create is in
 # Qt6::Core (already linked in the foreach), no Qt6::Concurrent needed.
 set(TEST_EXTRA_LIBS_MarkdownRendererTest libcmark-gfm-extensions_static)
+set(TEST_EXTRA_LIBS_MarkdownRendererHeadingIdTest libcmark-gfm-extensions_static)
 
 # RenderCoordinator.h transitively includes ui/PreviewView.h → QWebEngineView.
 # WorkerThread.h pulls in QtConcurrent for runOnWorker/postToMain.
