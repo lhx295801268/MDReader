@@ -4,7 +4,6 @@
 #include <memory>
 
 class QTabWidget;
-class QStackedWidget;
 class DocumentManager;
 class DocumentTab;
 class RenderCoordinator;
@@ -27,9 +26,7 @@ private slots:
     void exportCurrentHtml();
     void toggleOutline();
     void toggleInfo();
-    void onTabChanged(int idx);
-    void onDocumentAdded(std::shared_ptr<class Document> doc);
-    void onDocumentClosed(std::shared_ptr<class Document> doc);
+    void onTabChanged(int /*idx*/);
 
 private:
     void buildUi();
@@ -37,7 +34,6 @@ private:
     void saveSettings();
 
     DocumentTab* currentTab() const;
-    DocumentTab* tabForDocument(std::shared_ptr<class Document> doc) const;
 
     QTabWidget* tabs_ = nullptr;
     DocumentManager* dm_ = nullptr;

@@ -18,6 +18,22 @@
 #include <QFile>
 #include <QDir>
 #include <QEventLoop>
+#include <QFileInfo>
+#include <QPointer>
+#include <QTimer>
+
+namespace {
+constexpr auto kKeyLastFiles       = "session/lastFiles";
+constexpr auto kKeyCurrentIndex    = "session/currentIndex";
+constexpr auto kKeyTheme           = "ui/theme";
+constexpr auto kKeyRenderMode      = "ui/renderMode";
+constexpr auto kKeyShowLineNumbers = "ui/showLineNumbers";
+constexpr auto kKeySplitterA       = "layout/splitterA";
+constexpr auto kKeySplitterB       = "layout/splitterB";
+constexpr auto kKeySplitterC       = "layout/splitterC";
+constexpr auto kKeyOutlineVisible  = "sidebar/outlineVisible";
+constexpr auto kKeyInfoVisible     = "sidebar/infoVisible";
+}
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("MDReader");
@@ -27,15 +43,31 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     buildUi();
     loadSettings();
 
+    // Sync toolbar action state with persisted visibility without firing
+    // toggle signals (which would otherwise re-set outlineVisible_/infoVisible_
+    // back to whatever buildUi() initialized them to).
+    outlineAct_->blockSignals(true);
+    infoAct_->blockSignals(true);
+    outlineAct_->setChecked(outlineVisible_);
+    infoAct_->setChecked(infoVisible_);
+    outlineAct_->blockSignals(false);
+    infoAct_->blockSignals(false);
+
+    // Capture saved index + expected count by value so the async restore
+    // doesn't race against live currentIndex_ updates.
+    const int savedIndex = currentIndex_;
+    const int expectedCount = lastFiles_.size();
+    QPointer<MainWindow> self = this;
     connect(dm_, &DocumentManager::documentLoaded, this,
-            [this](std::shared_ptr<Document> doc) {
+            [self, savedIndex, expectedCount](std::shared_ptr<Document> doc) {
+        if (!self) return;
         auto* tab = new DocumentTab(doc);
-        rc_->bind(doc->path(), tab->preview());
-        tabs_->addTab(tab, QFileInfo(doc->path()).fileName());
-        if (lastFiles_.size() > 0 && currentIndex_ < tabs_->count()) {
-            tabs_->setCurrentIndex(currentIndex_);
+        self->rc_->bind(doc->path(), tab->preview());
+        self->tabs_->addTab(tab, QFileInfo(doc->path()).fileName());
+        if (self->tabs_->count() == expectedCount && savedIndex >= 0
+            && savedIndex < self->tabs_->count()) {
+            self->tabs_->setCurrentIndex(savedIndex);
         }
-        currentIndex_ = tabs_->currentIndex();
     });
 }
 
@@ -75,8 +107,6 @@ void MainWindow::buildUi() {
     connect(infoAct_, &QAction::toggled, this, &MainWindow::toggleInfo);
 
     connect(tabs_, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
-    connect(dm_, &DocumentManager::documentAdded,
-            this, &MainWindow::onDocumentAdded);
 }
 
 void MainWindow::newDocument() {
@@ -105,7 +135,9 @@ bool MainWindow::saveCurrent() {
         auto path = QFileDialog::getSaveFileName(this, "Save MD",
                                                  QString(), "Markdown (*.md)");
         if (path.isEmpty()) return false;
-        return false;  // SaveAs flow not in this task; see Task 24.
+        qWarning("MainWindow::saveCurrent: Save-As for new docs is a Task 24 stub "
+                 "(user picked %s, ignoring)", qUtf8Printable(path));
+        return false;
     }
     return dm_->saveDocument(doc);
 }
@@ -129,11 +161,16 @@ void MainWindow::exportCurrentHtml() {
     // event loop to fetch the current HTML synchronously for export.
     QString html;
     QEventLoop loop;
+    QTimer::singleShot(10000, &loop, &QEventLoop::quit);
     tab->preview()->page()->toHtml([&](const QString& h) {
         html = h;
         loop.quit();
     });
     loop.exec();
+    if (html.isEmpty()) {
+        qWarning("MainWindow::exportCurrentHtml: timed out or empty page");
+        return;
+    }
     tab->preview()->exportHtml(path, html);
 }
 
@@ -147,29 +184,22 @@ void MainWindow::onTabChanged(int) {
     tab->info()->setVisible(infoVisible_);
 }
 
-void MainWindow::onDocumentAdded(std::shared_ptr<Document>) { /* no-op */ }
-void MainWindow::onDocumentClosed(std::shared_ptr<Document>) { /* nothing extra */ }
-
 DocumentTab* MainWindow::currentTab() const {
     return qobject_cast<DocumentTab*>(tabs_->currentWidget());
 }
 
-DocumentTab* MainWindow::tabForDocument(std::shared_ptr<Document>) const {
-    return nullptr;
-}
-
 void MainWindow::loadSettings() {
     QSettings s;
-    lastFiles_       = s.value("session/lastFiles", QStringList()).toStringList();
-    currentIndex_    = s.value("session/currentIndex", -1).toInt();
-    theme_           = s.value("ui/theme", "github").toString();
-    renderMode_      = s.value("ui/renderMode", "live").toString();
-    showLineNumbers_ = s.value("ui/showLineNumbers", true).toBool();
-    splitterA_state_ = s.value("layout/splitterA").toByteArray();
-    splitterB_state_ = s.value("layout/splitterB").toByteArray();
-    splitterC_state_ = s.value("layout/splitterC").toByteArray();
-    outlineVisible_  = s.value("sidebar/outlineVisible", true).toBool();
-    infoVisible_     = s.value("sidebar/infoVisible",    true).toBool();
+    lastFiles_       = s.value(kKeyLastFiles, QStringList()).toStringList();
+    currentIndex_    = s.value(kKeyCurrentIndex, -1).toInt();
+    theme_           = s.value(kKeyTheme, "github").toString();
+    renderMode_      = s.value(kKeyRenderMode, "live").toString();
+    showLineNumbers_ = s.value(kKeyShowLineNumbers, true).toBool();
+    splitterA_state_ = s.value(kKeySplitterA).toByteArray();
+    splitterB_state_ = s.value(kKeySplitterB).toByteArray();
+    splitterC_state_ = s.value(kKeySplitterC).toByteArray();
+    outlineVisible_  = s.value(kKeyOutlineVisible, true).toBool();
+    infoVisible_     = s.value(kKeyInfoVisible,    true).toBool();
 
     for (const auto& f : lastFiles_) {
         if (QFile::exists(f)) dm_->openFile(f);
@@ -183,18 +213,18 @@ void MainWindow::saveSettings() {
         auto* tab = qobject_cast<DocumentTab*>(tabs_->widget(i));
         if (tab) lastFiles_ << tab->editor()->document()->path();
     }
-    s.setValue("session/lastFiles", lastFiles_);
-    s.setValue("session/currentIndex", tabs_->currentIndex());
-    s.setValue("ui/theme", theme_);
-    s.setValue("ui/renderMode", renderMode_);
-    s.setValue("ui/showLineNumbers", showLineNumbers_);
+    s.setValue(kKeyLastFiles, lastFiles_);
+    s.setValue(kKeyCurrentIndex, tabs_->currentIndex());
+    s.setValue(kKeyTheme, theme_);
+    s.setValue(kKeyRenderMode, renderMode_);
+    s.setValue(kKeyShowLineNumbers, showLineNumbers_);
     if (auto* tab = currentTab()) {
-        s.setValue("layout/splitterA", tab->splitterA()->saveState());
-        s.setValue("layout/splitterB", tab->splitterB()->saveState());
-        s.setValue("layout/splitterC", tab->splitterC()->saveState());
+        s.setValue(kKeySplitterA, tab->splitterA()->saveState());
+        s.setValue(kKeySplitterB, tab->splitterB()->saveState());
+        s.setValue(kKeySplitterC, tab->splitterC()->saveState());
     }
-    s.setValue("sidebar/outlineVisible", outlineVisible_);
-    s.setValue("sidebar/infoVisible",    infoVisible_);
+    s.setValue(kKeyOutlineVisible, outlineVisible_);
+    s.setValue(kKeyInfoVisible,    infoVisible_);
 }
 
 void MainWindow::closeEvent(QCloseEvent* e) {
