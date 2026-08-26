@@ -43,6 +43,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     rc_ = new RenderCoordinator(this);
     buildUi();
     loadSettings();
+    rc_->setMode(renderMode_ == "manual" ? RenderCoordinator::Manual : RenderCoordinator::Live);
 
     // Sync toolbar action state with persisted visibility without firing
     // toggle signals (which would otherwise re-set outlineVisible_/infoVisible_
