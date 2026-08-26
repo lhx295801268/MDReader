@@ -3,6 +3,7 @@
 #include <QMimeData>
 #include <QImage>
 #include <QBuffer>
+#include <QIODevice>
 #include <QFileInfo>
 #include <QDir>
 #include <QTextBlock>
@@ -60,11 +61,6 @@ void EditorView::resizeEvent(QResizeEvent* e) {
                                        lineNumberAreaWidth(), cr.height()));
 }
 
-void EditorView::paintEvent(QPaintEvent* e) {
-    QPlainTextEdit::paintEvent(e);
-    // 行号与缩进的连接点在 updateRequest 信号里 — 这里不再重复。
-}
-
 void EditorView::paintLineNumbers(QPaintEvent* e) {
     if (!showLineNumbers_) return;
     QPainter p(lineNumberArea_);
@@ -96,13 +92,14 @@ void EditorView::setDocument(std::shared_ptr<Document> doc) {
 void EditorView::syncFromDocument() {
     if (!doc_) return;
     QString t = doc_->text();
-    blockSignals(true);
+    loadingFromDoc_ = true;
     setPlainText(t);
-    blockSignals(false);
+    loadingFromDoc_ = false;
 }
 
 void EditorView::syncToDocument() {
     if (!doc_) return;
+    if (loadingFromDoc_) return;
     doc_->setText(toPlainText());
 }
 
@@ -117,7 +114,11 @@ void EditorView::insertFromMimeData(const QMimeData* source) {
             QByteArray bytes;
             QBuffer buf(&bytes);
             buf.open(QIODevice::WriteOnly);
-            img.save(&buf, "PNG");
+            if (!img.save(&buf, "PNG")) {
+                qWarning("EditorView::insertFromMimeData: PNG encode failed; falling back to plain text");
+                QPlainTextEdit::insertFromMimeData(source);
+                return;
+            }
             QFileInfo fi;
             QString ref;
             if (doc_) {

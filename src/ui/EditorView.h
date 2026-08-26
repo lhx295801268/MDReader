@@ -26,7 +26,6 @@ private slots:
     void updateLineNumberArea(const QRect& rect, int dy);
 
 protected:
-    void paintEvent(QPaintEvent* e) override;
     void resizeEvent(QResizeEvent* e) override;
     bool canInsertFromMimeData(const QMimeData* source) const override;
     void insertFromMimeData(const QMimeData* source) override;
@@ -35,4 +34,5 @@ private:
     QWidget* lineNumberArea_ = nullptr;
     std::shared_ptr<Document> doc_;
     bool showLineNumbers_ = true;
+    bool loadingFromDoc_ = false;
 };
