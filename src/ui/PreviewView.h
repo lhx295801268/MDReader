@@ -9,5 +9,5 @@ public:
     void setMarkdownHtml(const QString& fullHtml);
     void exportHtml(const QString& filePath, const QString& currentHtml);
     void exportPdf(const QString& filePath);
-    void onRenderFailed();
+    virtual void onRenderFailed();
 };
