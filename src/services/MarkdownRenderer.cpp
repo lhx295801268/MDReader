@@ -39,17 +39,27 @@ QString MarkdownRenderer::render(const QString& markdown, const QString& themeNa
     static cmark_syntax_extension* table_ext = cmark_find_syntax_extension("table");
     if (table_ext) {
         cmark_parser_attach_syntax_extension(parser, table_ext);
+    } else {
+        static std::once_flag warn_flag;
+        std::call_once(warn_flag, []() {
+            qWarning("MarkdownRenderer: cmark-gfm 'table' extension is not registered; "
+                     "pipe tables will render as plain text. Check that the cmark-gfm "
+                     "core extensions library is linked and registered.");
+        });
     }
 
     cmark_parser_feed(parser, utf8.constData(), utf8.size());
     cmark_node* doc = cmark_parser_finish(parser);
     if (!doc) {
         cmark_parser_free(parser);
-        return QStringLiteral("<p>(parse error)</p>");
+        return wrapHtml(QStringLiteral("<p class=\"parse-error\">(parse error)</p>"), themeName);
     }
     char* html_c = cmark_render_html(doc, CMARK_OPT_DEFAULT, nullptr);
     cmark_parser_free(parser);
     cmark_node_free(doc);
+    if (!html_c) {
+        return wrapHtml(QStringLiteral("<p class=\"render-error\">(render failure)</p>"), themeName);
+    }
     QString body = QString::fromUtf8(html_c);
     std::free(html_c);
     QString wrapped = wrapHtml(body, themeName);
