@@ -21,6 +21,7 @@
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QPointer>
+#include <QActionGroup>
 #include <QTimer>
 
 namespace {
@@ -112,6 +113,35 @@ void MainWindow::buildUi() {
             if (!doc) continue;
             rc_->requestRender(doc->path(), doc->text(), t);
         }
+    });
+
+    tb->addSeparator();
+    liveAct_ = tb->addAction("Live");
+    liveAct_->setCheckable(true); liveAct_->setChecked(true);
+    manualAct_ = tb->addAction("Manual");
+    manualAct_->setCheckable(true);
+    QActionGroup* grp = new QActionGroup(this);
+    grp->addAction(liveAct_); grp->addAction(manualAct_);
+    grp->setExclusive(true);
+
+    connect(liveAct_, &QAction::toggled, this, [this](bool on) {
+        if (on) { rc_->setMode(RenderCoordinator::Live); renderMode_ = "live"; }
+    });
+    connect(manualAct_, &QAction::toggled, this, [this](bool on) {
+        if (on) { rc_->setMode(RenderCoordinator::Manual); renderMode_ = "manual"; }
+    });
+
+    refreshAct_ = tb->addAction("Refresh");
+    refreshAct_->setEnabled(false);  // disabled while in Live mode (no Refresh needed)
+    connect(refreshAct_, &QAction::triggered, this, [this] {
+        auto* tab = currentTab();
+        if (!tab) return;
+        auto doc = tab->editor()->document();
+        if (!doc) return;
+        rc_->requestRender(doc->path(), doc->text(), theme_, /*force=*/true);
+    });
+    connect(liveAct_, &QAction::toggled, this, [this](bool on) {
+        refreshAct_->setEnabled(!on);
     });
 
     connect(newAct, &QAction::triggered, this, &MainWindow::newDocument);
@@ -222,6 +252,10 @@ void MainWindow::loadSettings() {
     }
 
     themeMenu_->setCurrent(theme_);
+
+    manualAct_->setChecked(renderMode_ == "manual");
+    liveAct_->setChecked(renderMode_ != "manual");
+    refreshAct_->setEnabled(renderMode_ == "manual");
 }
 
 void MainWindow::saveSettings() {

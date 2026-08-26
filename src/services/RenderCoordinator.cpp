@@ -34,13 +34,13 @@ void RenderCoordinator::unbind(const QString& docId) {
 void RenderCoordinator::setMode(Mode m) { mode_ = m; }
 
 void RenderCoordinator::requestRender(const QString& docId, const QString& markdown,
-                                      const QString& theme) {
+                                      const QString& theme, bool force) {
     auto it = pendings_.find(docId);
     if (it == pendings_.end()) return;
     it->markdown = markdown;
     it->theme = theme;
     it->frameId = nextFrameId_++;
-    if (mode_ == Manual) return;
+    if (mode_ == Manual && !force) return;
     it->timer->start();      // restart 250 ms
 }
 

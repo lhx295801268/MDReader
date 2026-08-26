@@ -48,6 +48,9 @@ private:
     bool showLineNumbers_ = true;
     QAction* outlineAct_ = nullptr;
     QAction* infoAct_ = nullptr;
+    QAction* liveAct_ = nullptr;
+    QAction* manualAct_ = nullptr;
+    QAction* refreshAct_ = nullptr;
     ThemeMenu* themeMenu_ = nullptr;
     QByteArray splitterA_state_;
     QByteArray splitterB_state_;

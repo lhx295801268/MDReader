@@ -19,7 +19,7 @@ public:
     void unbind(const QString& docId);
 
     void requestRender(const QString& docId, const QString& markdown,
-                       const QString& theme);
+                       const QString& theme, bool force = false);
 
     void setMode(Mode m);
     Mode mode() const { return mode_; }
