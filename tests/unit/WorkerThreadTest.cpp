@@ -1,6 +1,6 @@
 #include <QtTest>
-#include <QThread>
-#include <QCoreApplication>
+#include <QEventLoop>
+#include <QMetaObject>
 #include <atomic>
 #include <thread>
 #include "services/WorkerThread.h"
