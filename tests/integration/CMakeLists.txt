@@ -14,6 +14,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Test Concurrent)
 set(INTEGRATION_TESTS
     HtmlExportTest
     EditToPreviewTest
+    ThemeSwitchTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -40,6 +41,18 @@ set(TEST_EXTRA_SOURCES_EditToPreviewTest
 
 set(TEST_EXTRA_LIBS_EditToPreviewTest
     Qt6::WebEngineWidgets Qt6::Widgets Qt6::Concurrent)
+
+# Task 27a: ThemeSwitchTest renders Markdown with two different theme names
+# and asserts the resulting HTML differs. Exercises MarkdownRenderer (which
+# uses OutlineExtractor::slugify to set heading ids during wrapHtml) — no
+# UI / web engine stack required, but the libcmark-gfm-extensions link is
+# still required because MarkdownRenderer pulls in the table extension.
+set(TEST_EXTRA_SOURCES_ThemeSwitchTest
+    ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
+
+set(TEST_EXTRA_LIBS_ThemeSwitchTest
+    libcmark-gfm-extensions_static)
 
 # cmark-gfm-extensions references cmark-gfm symbols (e.g. cmark_arena_push),
 # so extensions must precede cmark-gfm_static on the link line. This matches
@@ -83,5 +96,5 @@ endforeach()
 
 # Integration tests use QtWebEngineWidgets, which needs a GUI platform.
 # Use offscreen in headless CI environments (libxcb-cursor0 is missing here).
-set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest PROPERTIES
+set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
