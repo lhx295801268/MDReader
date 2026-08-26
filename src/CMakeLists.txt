@@ -12,6 +12,7 @@ qt_add_executable(mdreader
     ui/EditorView.h ui/EditorView.cpp
     ui/InfoView.h ui/InfoView.cpp
     ui/OutlineView.h ui/OutlineView.cpp
+    ui/DocumentTab.h ui/DocumentTab.cpp
 )
 
 target_link_libraries(mdreader PRIVATE
