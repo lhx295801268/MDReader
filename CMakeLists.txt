@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(MDReader VERSION 0.1.0 LANGUAGES CXX)
+project(MDReader VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,6 +13,20 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets)
 qt_standard_project_setup()
+
+include(FetchContent)
+FetchContent_Declare(
+    cmark-gfm
+    GIT_REPOSITORY https://github.com/github/cmark-gfm.git
+    GIT_TAG 0.29.0.gfm.13
+    GIT_SHALLOW TRUE
+)
+# Upstream uses CMARK_* options (not CMARK_GFM_*). Disable shared/tests/examples
+# to keep our build lean; install rules remain but are harmless because we
+# never invoke `make install` (FetchContent_MakeAvailable embeds it).
+set(CMARK_SHARED OFF CACHE BOOL "" FORCE)
+set(CMARK_TESTS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(cmark-gfm)
 
 add_subdirectory(src)
 
