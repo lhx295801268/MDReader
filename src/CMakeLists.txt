@@ -29,6 +29,7 @@ qt_add_resources(mdreader "mdreader_resources"
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/solarized-light.css"
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/solarized-dark.css"
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/one-dark.css"
+        # --- vendored 3rd-party assets (see scripts/fetch_vendor.sh) ---
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/vendor/highlight/highlight.min.js"
 )
 
