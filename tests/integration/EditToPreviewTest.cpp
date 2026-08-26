@@ -10,10 +10,14 @@
 // Integration: end-to-end editor -> preview rendering through the real
 // RenderCoordinator pipeline. Wires up a Document (text="# Hi"), constructs
 // a DocumentTab (which builds EditorView + PreviewView), binds the
-// RenderCoordinator to the tab's preview, asks for a render with force=true
-// so the 250ms debounce does not delay us, and then asserts the rendered
-// preview DOM contains "Hi" — i.e. the markdown made it from the Document
-// into the rendered HTML visible in the QWebEngineView.
+// RenderCoordinator to the tab's preview, asks for a render, and then
+// asserts the rendered preview DOM contains "Hi" — i.e. the markdown made
+// it from the Document into the rendered HTML visible in the QWebEngineView.
+//
+// requestRender in Live mode (default) starts the 250ms debounce timer;
+// we rely on the 3000ms QTRY_VERIFY_WITH_TIMEOUT budget to absorb it.
+// force=true is a no-op in Live mode — it only bypasses Manual-mode
+// short-circuit (see RenderCoordinator::requestRender).
 //
 // On QPA platform: QTEST_MAIN constructs a QApplication that needs a GUI
 // platform. The ctest ENVIRONMENT property on this test sets

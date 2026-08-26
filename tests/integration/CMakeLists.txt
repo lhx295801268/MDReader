@@ -46,6 +46,22 @@ set(TEST_EXTRA_LIBS_EditToPreviewTest
 # src/CMakeLists.txt. Unused by HtmlExportTest but cheap to keep here.
 set(_INTEGRATION_CMARK_LIBS libcmark-gfm-extensions_static libcmark-gfm_static)
 
+# MarkdownRenderer::wrapHtml embeds resources via the `:/themes/<name>.css`,
+# `:/vendor/highlight/highlight.min.js`, and `:/vendor/mathjax/tex-mml-chtml.js`
+# qrc paths. Without registering these on the test executable, the rendered
+# preview HTML is broken (no theme CSS, no syntax highlighting, no MathJax),
+# which cascades into ThemeSwitchTest assertions. Mirror src/CMakeLists.txt.
+set(_INTEGRATION_RESOURCE_FILES
+    ${CMAKE_SOURCE_DIR}/src/resources/themes/github.css
+    ${CMAKE_SOURCE_DIR}/src/resources/themes/github-dark.css
+    ${CMAKE_SOURCE_DIR}/src/resources/themes/dracula.css
+    ${CMAKE_SOURCE_DIR}/src/resources/themes/solarized-light.css
+    ${CMAKE_SOURCE_DIR}/src/resources/themes/solarized-dark.css
+    ${CMAKE_SOURCE_DIR}/src/resources/themes/one-dark.css
+    ${CMAKE_SOURCE_DIR}/src/resources/vendor/highlight/highlight.min.js
+    ${CMAKE_SOURCE_DIR}/src/resources/vendor/mathjax/tex-mml-chtml.js
+)
+
 foreach(test_name ${INTEGRATION_TESTS})
     qt_add_executable(${test_name} ${test_name}.cpp
         ${TEST_EXTRA_SOURCES_${test_name}})
@@ -58,6 +74,10 @@ foreach(test_name ${INTEGRATION_TESTS})
         ${cmark-gfm_SOURCE_DIR}/src
         ${cmark-gfm_SOURCE_DIR}/extensions
         ${cmark-gfm_BINARY_DIR}/src)
+    qt_add_resources(${test_name} "integration_${test_name}_resources"
+        PREFIX "/"
+        BASE "${CMAKE_SOURCE_DIR}/src/resources"
+        FILES ${_INTEGRATION_RESOURCE_FILES})
     add_test(NAME integration_${test_name} COMMAND ${test_name})
 endforeach()
 
