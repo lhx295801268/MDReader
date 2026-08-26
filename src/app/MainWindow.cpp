@@ -109,6 +109,7 @@ void MainWindow::buildUi() {
         std::shared_ptr<Document> doc = tab->editor()->document();
         dm_->closeDocument(doc);
         rc_->unbind(doc->path());
+        if (!doc->path().isEmpty()) fileWatcher_->unwatch(doc->path());
         tabs_->removeTab(idx);
     });
     setCentralWidget(tabs_);
@@ -324,6 +325,11 @@ void MainWindow::onExternalChange(const QString& path, const QByteArray& bytes) 
     if (!tab) return;  // tab was closed between FS event and this callback
     auto doc = tab->editor()->document();
     if (!doc) return;
+    if (bytes.isEmpty()) {
+        qWarning("MainWindow::onExternalChange: empty bytes for %s (file may have been deleted or unreadable)",
+                 qUtf8Printable(path));
+        return;
+    }
     const QString disk = QString::fromUtf8(bytes);
 
     // Shared "apply the on-disk content" path used by both the silent
@@ -367,12 +373,20 @@ void MainWindow::onExternalChange(const QString& path, const QByteArray& bytes) 
         const QString bak = path + QStringLiteral(".conflict-") + stamp
                             + QStringLiteral(".md");
         QFile b(bak);
+        bool ok = false;
         if (b.open(QIODevice::WriteOnly)) {
-            b.write(doc->text().toUtf8());
+            QByteArray bytes = doc->text().toUtf8();
+            qint64 wrote = b.write(bytes);
             b.close();
-        } else {
-            qWarning("MainWindow::onExternalChange: backup write failed for %s",
-                     qUtf8Printable(bak));
+            ok = (wrote == bytes.size());
+            if (!ok) {
+                qWarning("MainWindow::onExternalChange: backup write short at %s (wrote %lld of %lld)",
+                         qUtf8Printable(bak), (long long)wrote, (long long)bytes.size());
+            }
+        }
+        if (!ok) {
+            statusBar()->showMessage(tr("Backup failed for %1").arg(bak), 5000);
+            return;
         }
         reloadFromDisk();
         statusBar()->showMessage(tr("Saved backup to %1").arg(bak), 5000);
