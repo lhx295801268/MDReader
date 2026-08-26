@@ -9,6 +9,8 @@ class PreviewView;
 class OutlineView;
 class InfoView;
 
+/// A single document tab: triple-nested horizontal QSplitter that arranges
+/// [Outline | Editor | Preview | Info] left-to-right.
 class DocumentTab : public QWidget {
     Q_OBJECT
 public:

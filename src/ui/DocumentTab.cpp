@@ -5,6 +5,19 @@
 #include "ui/OutlineView.h"
 #include "ui/InfoView.h"
 
+#include <QHBoxLayout>
+
+namespace {
+// Outline pane (left side)
+constexpr int kOutlineDefaultWidth = 180;
+constexpr int kOutlineMinWidth = 120;
+// Inner editor / preview / info split
+constexpr int kEditorPreviewDefault = 500;
+constexpr int kPreviewInfoPreviewDefault = 700;
+constexpr int kPreviewInfoInfoDefault = 220;
+constexpr int kInfoMinWidth = 150;
+}  // namespace
+
 DocumentTab::DocumentTab(std::shared_ptr<Document> doc, QWidget* parent)
     : QWidget(parent), doc_(std::move(doc)) {
     buildUi();
@@ -35,12 +48,12 @@ void DocumentTab::buildUi() {
     splitterA_->setStretchFactor(0, 0);
     splitterA_->setStretchFactor(1, 1);
 
-    splitterA_->setSizes({180, 1000});
-    splitterB_->setSizes({500, 500});
-    splitterC_->setSizes({700, 220});
+    splitterA_->setSizes({kOutlineDefaultWidth, 1000});
+    splitterB_->setSizes({kEditorPreviewDefault, kEditorPreviewDefault});
+    splitterC_->setSizes({kPreviewInfoPreviewDefault, kPreviewInfoInfoDefault});
 
-    info_->setMinimumWidth(150);
-    outline_->setMinimumWidth(120);
+    info_->setMinimumWidth(kInfoMinWidth);
+    outline_->setMinimumWidth(kOutlineMinWidth);
 
     auto* layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
