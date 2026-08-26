@@ -38,6 +38,7 @@ option(BUILD_TESTING "Build tests" OFF)
 if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests/unit)
+    add_subdirectory(tests/integration)
 endif()
 
 include(CPack)
