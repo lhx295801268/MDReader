@@ -6,3 +6,5 @@ code { background: rgba(110,118,129,.4); }
 pre  { background: #161b22; }
 blockquote { border-left: 4px solid #444c56; color: #8b949e; }
 table th, table td { border: 1px solid #3b434b; }
+code, pre { font-family: SFMono-Regular, Menlo, Consolas, monospace; }
+a    { color: #58a6ff; }

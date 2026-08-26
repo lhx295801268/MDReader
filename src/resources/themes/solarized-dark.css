@@ -4,3 +4,5 @@ h1, h2, h3 { color: #b58900; }
 code { background: #073642; color: #93a1a1; }
 pre  { background: #073642; }
 blockquote { border-left: 4px solid #586e75; color: #586e75; }
+code, pre { font-family: SFMono-Regular, Menlo, Consolas, monospace; }
+a    { color: #268bd2; }
