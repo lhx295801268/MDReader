@@ -1,0 +1,57 @@
+#pragma once
+#include <QMainWindow>
+#include <QStringList>
+#include <memory>
+
+class QTabWidget;
+class QStackedWidget;
+class DocumentManager;
+class DocumentTab;
+class RenderCoordinator;
+class QAction;
+
+class MainWindow : public QMainWindow {
+    Q_OBJECT
+public:
+    explicit MainWindow(QWidget* parent = nullptr);
+    void openFileFromCli(const QString& path);
+
+protected:
+    void closeEvent(QCloseEvent* e) override;
+
+private slots:
+    void newDocument();
+    void openDocument();
+    bool saveCurrent();
+    void exportCurrentPdf();
+    void exportCurrentHtml();
+    void toggleOutline();
+    void toggleInfo();
+    void onTabChanged(int idx);
+    void onDocumentAdded(std::shared_ptr<class Document> doc);
+    void onDocumentClosed(std::shared_ptr<class Document> doc);
+
+private:
+    void buildUi();
+    void loadSettings();
+    void saveSettings();
+
+    DocumentTab* currentTab() const;
+    DocumentTab* tabForDocument(std::shared_ptr<class Document> doc) const;
+
+    QTabWidget* tabs_ = nullptr;
+    DocumentManager* dm_ = nullptr;
+    RenderCoordinator* rc_ = nullptr;
+    QStringList lastFiles_;
+    int currentIndex_ = -1;
+    bool outlineVisible_ = true;
+    bool infoVisible_ = true;
+    QString theme_ = "github";
+    QString renderMode_ = "live";
+    bool showLineNumbers_ = true;
+    QAction* outlineAct_ = nullptr;
+    QAction* infoAct_ = nullptr;
+    QByteArray splitterA_state_;
+    QByteArray splitterB_state_;
+    QByteArray splitterC_state_;
+};

@@ -1,0 +1,14 @@
+<RCC>
+  <qresource prefix="/">
+    <file>themes/github.css</file>
+    <file>themes/github-dark.css</file>
+    <file>themes/dracula.css</file>
+    <file>themes/solarized-light.css</file>
+    <file>themes/solarized-dark.css</file>
+    <file>themes/one-dark.css</file>
+  </qresource>
+  <qresource prefix="/vendor">
+    <file>vendor/highlight/highlight.min.js</file>
+    <file>vendor/mathjax/tex-mml-chtml.js</file>
+  </qresource>
+</RCC>

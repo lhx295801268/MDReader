@@ -2,6 +2,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Concurrent)
 
 qt_add_executable(mdreader
     app/main.cpp
+    app/MainWindow.h app/MainWindow.cpp
     documents/Document.h documents/Document.cpp
     documents/DocumentManager.h documents/DocumentManager.cpp
     services/WorkerThread.h
@@ -14,6 +15,18 @@ qt_add_executable(mdreader
     ui/InfoView.h ui/InfoView.cpp
     ui/OutlineView.h ui/OutlineView.cpp
     ui/DocumentTab.h ui/DocumentTab.cpp
+)
+
+qt_add_resources(mdreader "mdreader_resources"
+    PREFIX "/"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources"
+    FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/github.css"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/github-dark.css"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/dracula.css"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/solarized-light.css"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/solarized-dark.css"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/one-dark.css"
 )
 
 target_link_libraries(mdreader PRIVATE
