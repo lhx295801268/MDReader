@@ -148,7 +148,7 @@ int main(int argc, char** argv) {
 
     const Shot shots[] = {
         { "01-full.png",         "tests/fixtures/sample.md", "github"          },
-        { "02-github-light.png", "tests/fixtures/sample.md", "github"          },
+        { "02-github-dark.png",  "tests/fixtures/sample.md", "github-dark"     },
         { "03-dracula-dark.png", "tests/fixtures/sample.md", "dracula"         },
         { "04-solarized.png",    "tests/fixtures/sample.md", "solarized-light" },
         { "05-math-or-code.png", "tests/fixtures/math.md",   "github"          },
