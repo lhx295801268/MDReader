@@ -61,6 +61,19 @@ ctest --test-dir build --output-on-failure   # 可选
 
 `docs/screenshots/` 下保存 6 张:全功能视图、浅色主题、深色主题、含数学公式、含代码块、文件冲突 modal。
 
+## 第三方依赖与开源声明
+
+MDReader 使用(并感谢)以下开源项目:
+
+| 依赖 | 版本 | 许可证 | 用途 |
+|---|---|---|---|
+| [Qt](https://www.qt.io/) | 6.5+ | [LGPL v3](https://www.gnu.org/licenses/lgpl-3.0.html) / GPL v2+ / 商业 | 窗口、事件循环、网络、WebEngine 预览 |
+| [cmark-gfm](https://github.com/github/cmark-gfm) | 0.29.0.gfm.13 | [BSD 2-Clause](https://github.com/github/cmark-gfm/blob/master/COPYING) | GitHub Flavored Markdown 解析 |
+| [highlight.js](https://highlightjs.org/) | 11.9.0 | [BSD 3-Clause](https://github.com/highlightjs/highlight.js/blob/main/LICENSE) | 代码块语法高亮( vendored 在 `src/resources/vendor/highlight/`) |
+| [MathJax](https://www.mathjax.org/) | 3 | [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) | 数学公式渲染( vendored 在 `src/resources/vendor/mathjax/`) |
+
+`.deb` 与 `.exe` 安装器均通过**动态链接** Qt,不修改 Qt 源码,因此 LGPL v3 兼容性条款得到满足;highlight.js 与 MathJax 以原始源码形式 vendored,许可文本保留在各文件中。
+
 ## 许可证
 
 MIT(待替换为实际许可证)。
