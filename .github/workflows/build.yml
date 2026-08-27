@@ -51,7 +51,7 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j
       - name: Deploy Qt DLLs
-        run: windeployqt build/src/Release/mdreader.exe
+        run: windeployqt build/bin/Release/mdreader.exe
       - name: Tests
         run: ctest --test-dir build -C Release --output-on-failure
         shell: bash
