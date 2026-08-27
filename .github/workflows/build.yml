@@ -1,0 +1,64 @@
+name: build
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux-deb:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: 'recursive' }
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+      - name: Install cmark-gfm build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg fakeroot
+      - name: CMake configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build -j
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Package
+        run: cd build && cpack -G DEB
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MDReader-Linux-deb
+          path: build/MDReader-*.deb
+
+  windows-exe:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 6 + NSIS
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+      - uses: seanmiddleditch/gha-setup-nsis@v5
+      - name: Configure
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build --config Release -j
+      - name: Deploy Qt DLLs
+        run: windeployqt build/src/Release/mdreader.exe
+      - name: Tests
+        run: ctest --test-dir build -C Release --output-on-failure
+        shell: bash
+      - name: Package
+        run: cd build && cpack -G NSIS -C Release
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MDReader-Windows-exe
+          path: build/MDReader-*-win64.exe
