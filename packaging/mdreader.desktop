@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=MDReader
+Comment=Markdown reader and editor
+Exec=mdreader %F
+Icon=mdreader
+Terminal=false
+Categories=Office;TextEditor;Utility;
+MimeType=text/markdown;text/x-markdown;

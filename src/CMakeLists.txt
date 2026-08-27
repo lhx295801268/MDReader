@@ -47,3 +47,5 @@ target_include_directories(mdreader PRIVATE
     ${cmark-gfm_SOURCE_DIR}/extensions
     ${cmark-gfm_BINARY_DIR}/src
 )
+
+install(TARGETS mdreader RUNTIME DESTINATION bin)
