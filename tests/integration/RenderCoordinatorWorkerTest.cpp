@@ -8,8 +8,17 @@
 
 // Integration: RenderCoordinator::requestRender must NOT block the main
 // thread while the worker computes the render. The plan asserts the
-// enqueue should take < 50ms; a 1MB+ markdown would block the main
-// thread 200-500ms if rendering happened synchronously here.
+// enqueue should take < 50ms.
+//
+// Payload size is deliberately NOT the point of this test. requestRender's
+// body is O(1) in the input: a hash lookup in pendings_, three QString
+// refcount bumps, a frameId increment, and QTimer::start(). It would behave
+// identically for 1 byte or 1 GB. The non-trivial document below only makes
+// the scenario realistic (Document::text() returns real markdown); an empty
+// string would satisfy the assertion just the same. Should rendering ever
+// regress into requestRender synchronously, the enqueue time WOULD start
+// tracking input size and this assertion would fail — that regression is
+// what the threshold guards.
 //
 // We only time the requestRender ENQUEUE (the function body just stores
 // the inputs and restarts the 250ms debounce timer) — we do NOT spin the
@@ -33,7 +42,8 @@ private slots:
 void RenderCoordinatorWorkerTest::main_thread_responds_quickly_while_worker_renders() {
     QVERIFY(QApplication::instance());  // QTEST_MAIN provides it.
 
-    // 1MB+ 的 markdown,正常同步渲染会卡主线程 200-500ms。
+    // A ~37 KB markdown document: non-trivial but not load-bearing (see the
+    // note above — requestRender's enqueue cost does not scale with it).
     QString big = "# 大标题\n\n" + QString(1000, 'a') + QString("\n\n");
     for (int i = 0; i < 1000; ++i) big += QStringLiteral("段落%1 **bold** *em* `code`\n").arg(i);
 
