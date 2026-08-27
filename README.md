@@ -2,6 +2,21 @@
 
 跨平台 C++ Markdown 阅读/编辑工具。Qt 6 + cmark-gfm + QWebEngineView。
 
+## 系统要求
+
+### Linux
+- **Ubuntu 22.04 LTS (Jammy)** 或更高,或 **Debian 12 (Bookworm)** 或更高
+- 早于 Ubuntu 22.04 / Debian 12 的系统主源没有 `libqt6*` 包,需自行安装 Qt 6.5+(如 [aqtinstall](https://github.com/miuruaqt/aqtinstall))后用 `dpkg --force-depends` 强装本 .deb
+- x86_64 架构
+
+### Windows
+- **Windows 10 64-bit (1809+)** / **Windows 11**,或 **Windows Server 2019+**
+- NSIS 安装器由 Visual Studio 2022 + Qt 6.5 MSVC 2019 64-bit 构建
+
+### 通用
+- Qt 6.5 或更高(QWebEngineView 依赖 Chromium 内核)
+- 大约 200 MB 磁盘空间(Qt WebEngine 进程资源)
+
 ## 截图
 
 [docs/screenshots/main.png](docs/screenshots/main.png)
