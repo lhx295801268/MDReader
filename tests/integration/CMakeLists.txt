@@ -168,3 +168,11 @@ endforeach()
 # Use offscreen in headless CI environments (libxcb-cursor0 is missing here).
 set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest integration_ExternalReloadTest integration_RenderCoordinatorWorkerTest integration_grab_screenshots PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# integration_grab_screenshots is a manual helper, not a CI test: QWebEngineView
+# does not paint under the offscreen QPA platform that CI uses, so the helper's
+# load wait would time out, produce no PNGs, and fail the run. Keep it DISABLED
+# for ctest and invoke the built `grab_screenshots` binary directly from a
+# workstation with a real display (QT_QPA_PLATFORM=xcb) when the screenshots in
+# docs/screenshots/ need regenerating.
+set_tests_properties(integration_grab_screenshots PROPERTIES DISABLED ON)
