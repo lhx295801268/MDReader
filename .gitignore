@@ -25,9 +25,19 @@ qmake_*
 .vscode/
 .idea/
 *.code-workspace
+.claude/
 
 # Brainstorming & session files
 .superpowers/
+SESSIONS_1M.md
+SESSIONS_512.md
+SESSIONS.md
 
-# Local assets cache (resources are vendored)
-.cache/
+# Out-of-tree cmake invocation byproducts (real build lives under build/)
+CMakeCache.txt
+CMakeFiles/
+_deps/
+Testing/
+
+# Tool logs
+aqtinstall.log
