@@ -17,6 +17,7 @@ set(INTEGRATION_TESTS
     ThemeSwitchTest
     ExternalReloadTest
     RenderCoordinatorWorkerTest
+    grab_screenshots
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -42,6 +43,26 @@ set(TEST_EXTRA_SOURCES_EditToPreviewTest
     ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp)
 
 set(TEST_EXTRA_LIBS_EditToPreviewTest
+    Qt6::WebEngineWidgets Qt6::Widgets Qt6::Concurrent)
+
+# Task 32: grab_screenshots builds a DocumentTab for each (fixture, theme)
+# pair, drives a render through RenderCoordinator, then QWidget::grab()s
+# the rendered preview into docs/screenshots/*.png. Used to generate
+# smoke-test screenshots under offscreen QPA.
+set(TEST_EXTRA_SOURCES_grab_screenshots
+    ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/DocumentTab.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/EditorView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/OutlineView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/InfoView.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/RenderCoordinator.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/WordCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/ImageHandler.cpp
+    ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp)
+
+set(TEST_EXTRA_LIBS_grab_screenshots
     Qt6::WebEngineWidgets Qt6::Widgets Qt6::Concurrent)
 
 # Task 27a: ThemeSwitchTest renders Markdown with two different theme names
@@ -145,5 +166,5 @@ endforeach()
 
 # Integration tests use QtWebEngineWidgets, which needs a GUI platform.
 # Use offscreen in headless CI environments (libxcb-cursor0 is missing here).
-set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest integration_ExternalReloadTest integration_RenderCoordinatorWorkerTest PROPERTIES
+set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest integration_ExternalReloadTest integration_RenderCoordinatorWorkerTest integration_grab_screenshots PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
