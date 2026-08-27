@@ -15,6 +15,7 @@ set(INTEGRATION_TESTS
     HtmlExportTest
     EditToPreviewTest
     ThemeSwitchTest
+    ExternalReloadTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -53,6 +54,23 @@ set(TEST_EXTRA_SOURCES_ThemeSwitchTest
 
 set(TEST_EXTRA_LIBS_ThemeSwitchTest
     libcmark-gfm-extensions_static)
+
+# Task 27b: ExternalReloadTest exercises the worker read path only —
+# DocumentManager::openFile dispatches the file read to a worker thread
+# (QtConcurrent via WorkerThread.h) and emits documentLoaded back on the
+# main thread. The 3-button conflict modal that fires on dirty edits is
+# intentionally NOT exercised here (headless QMessageBox is brittle);
+# we just assert that openFile completes and the loaded Document carries
+# the file bytes. No UI stack needed, so no preview/edit/tab sources.
+set(TEST_EXTRA_SOURCES_ExternalReloadTest
+    ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp
+    ${CMAKE_SOURCE_DIR}/src/documents/DocumentManager.cpp)
+
+# WorkerThread.h pulls in Qt6::Concurrent (QtConcurrent::run / QThreadPool);
+# DocumentManager.cpp uses it directly. The default foreach already links
+# Qt6::Widgets (harmless) — only Concurrent needs to be added explicitly.
+set(TEST_EXTRA_LIBS_ExternalReloadTest
+    Qt6::Concurrent)
 
 # cmark-gfm-extensions references cmark-gfm symbols (e.g. cmark_arena_push),
 # so extensions must precede cmark-gfm_static on the link line. This matches
@@ -96,5 +114,5 @@ endforeach()
 
 # Integration tests use QtWebEngineWidgets, which needs a GUI platform.
 # Use offscreen in headless CI environments (libxcb-cursor0 is missing here).
-set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest PROPERTIES
+set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest integration_ExternalReloadTest PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
