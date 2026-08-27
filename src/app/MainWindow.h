@@ -12,6 +12,7 @@ class DocumentTab;
 class RenderCoordinator;
 class ThemeMenu;
 class QAction;
+namespace Qt { enum class ColorScheme; }
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -38,6 +39,11 @@ private slots:
     // Document::dirty() state.
     void onExternalChange(const QString& path, const QByteArray& bytes);
 
+    // Phase 7: re-render every tab if we're in follow-system mode. Triggered
+    // by QStyleHints::colorSchemeChanged. No-op when the user has pinned a
+    // specific theme.
+    void onSystemColorSchemeChanged(Qt::ColorScheme scheme);
+
 private:
     void buildUi();
     void loadSettings();
@@ -46,6 +52,17 @@ private:
     // Task 20: connect outline ↔ editor ↔ preview bidirectional sync for a
     // newly-created tab. Called by both documentLoaded and newDocument.
     void wireTabSync(DocumentTab* tab);
+
+    // Phase 7: translate (themeMode_, userTheme_, system colorScheme) into
+    // the concrete theme basename used by RenderCoordinator. Implementation
+    // lives in src/app/ThemeResolution.h so unit tests can exercise it
+    // without linking the entire MainWindow translation unit.
+    QString resolveEffectiveTheme() const;
+
+    // Phase 7: re-render every open tab with `effectiveTheme`. Used after a
+    // user picks a new theme OR after the OS color scheme changes while in
+    // follow-system mode.
+    void rerenderAllTabs(const QString& effectiveTheme);
 
     DocumentTab* currentTab() const;
 
@@ -62,6 +79,13 @@ private:
     int currentIndex_ = -1;
     bool outlineVisible_ = true;
     bool infoVisible_ = true;
+    // Phase 7: themeMode_ is "auto" (follow OS) or "manual" (use userTheme_).
+    // userTheme_ remembers the last concrete theme the user picked so that
+    // switching back from auto to manual restores their preference.
+    QString themeMode_ = "manual";
+    QString userTheme_ = "github";
+    // Legacy alias kept for the few call sites that just want "what to
+    // render with right now" — equivalent to resolveEffectiveTheme().
     QString theme_ = "github";
     QString renderMode_ = "live";
     bool showLineNumbers_ = true;

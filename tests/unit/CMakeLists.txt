@@ -16,6 +16,8 @@ set(UNIT_TESTS
     WordCounterTest
     OutlineExtractorTest
     FileWatcherDebounceTest
+    ThemeMenuTest
+    MainWindowThemeTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -32,6 +34,9 @@ set(TEST_EXTRA_SOURCES_ImageHandlerTest ${CMAKE_SOURCE_DIR}/src/services/ImageHa
 set(TEST_EXTRA_SOURCES_WordCounterTest ${CMAKE_SOURCE_DIR}/src/services/WordCounter.cpp)
 set(TEST_EXTRA_SOURCES_OutlineExtractorTest ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
 set(TEST_EXTRA_SOURCES_FileWatcherDebounceTest ${CMAKE_SOURCE_DIR}/src/services/FileWatcher.cpp)
+set(TEST_EXTRA_SOURCES_ThemeMenuTest
+    ${CMAKE_SOURCE_DIR}/src/ui/ThemeMenu.cpp)
+# (MainWindowThemeTest only needs the header-only ThemeResolution.h — no .cpp.)
 set(TEST_EXTRA_SOURCES_RenderFrameDropTest
     ${CMAKE_SOURCE_DIR}/src/services/RenderCoordinator.cpp
     ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
@@ -64,6 +69,11 @@ set(TEST_EXTRA_LIBS_MarkdownRendererHeadingIdTest libcmark-gfm-extensions_static
 set(TEST_EXTRA_LIBS_RenderFrameDropTest
     Qt6::WebEngineWidgets Qt6::Widgets Qt6::Concurrent
     libcmark-gfm-extensions_static)
+
+# ThemeMenu is a QMenu (QWidget); QActionGroup + addAction require
+# Qt6::Widgets. Test exercises signals/slots programmatically — works
+# under QT_QPA_PLATFORM=offscreen.
+set(TEST_EXTRA_LIBS_ThemeMenuTest Qt6::Widgets)
 
 foreach(test_name ${UNIT_TESTS})
     qt_add_executable(${test_name} ${test_name}.cpp ${TEST_EXTRA_SOURCES_${test_name}})

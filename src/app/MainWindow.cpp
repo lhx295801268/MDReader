@@ -1,4 +1,5 @@
 #include "app/MainWindow.h"
+#include "app/ThemeResolution.h"
 #include "documents/Document.h"
 #include "documents/DocumentManager.h"
 #include "ui/DocumentTab.h"
@@ -27,12 +28,15 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QStatusBar>
+#include <QStyleHints>
+#include <QGuiApplication>
 #include "services/FileWatcher.h"
 
 namespace {
 constexpr auto kKeyLastFiles       = "session/lastFiles";
 constexpr auto kKeyCurrentIndex    = "session/currentIndex";
 constexpr auto kKeyTheme           = "ui/theme";
+constexpr auto kKeyThemeMode       = "ui/themeMode";
 constexpr auto kKeyRenderMode      = "ui/renderMode";
 constexpr auto kKeyShowLineNumbers = "ui/showLineNumbers";
 constexpr auto kKeySplitterA       = "layout/splitterA";
@@ -42,6 +46,14 @@ constexpr auto kKeyOutlineVisible  = "sidebar/outlineVisible";
 constexpr auto kKeyInfoVisible     = "sidebar/infoVisible";
 constexpr auto kValueLive          = "live";
 constexpr auto kValueManual        = "manual";
+constexpr auto kValueThemeManual   = "manual";   // distinguishes from renderMode kValueManual
+
+// kValueAuto / kAutoLightTheme / kAutoDarkTheme live in
+// app/ThemeResolution.h (so unit tests can reach them without linking
+// MainWindow.cpp). Aliases here are just for readability inside this TU.
+using mdreader::theme::kModeAuto;
+using mdreader::theme::kAutoLightTheme;
+using mdreader::theme::kAutoDarkTheme;
 }
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
@@ -55,6 +67,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     fileWatcher_ = new FileWatcher(this);
     connect(fileWatcher_, &FileWatcher::externalModified,
             this, &MainWindow::onExternalChange);
+    // Phase 7: follow the OS color scheme. The slot is harmless when the
+    // user has pinned a specific theme (themeMode_ == "manual") — it just
+    // recomputes theme_ and skips the rerender.
+    connect(QGuiApplication::styleHints(),
+            &QStyleHints::colorSchemeChanged,
+            this, &MainWindow::onSystemColorSchemeChanged);
     buildUi();
     loadSettings();
     // Defense-in-depth: loadSettings() already drives setMode() via the
@@ -131,14 +149,17 @@ void MainWindow::buildUi() {
     auto* themeBtn = tb->addAction("Theme");
     themeBtn->setMenu(themeMenu_);
     connect(themeMenu_, &ThemeMenu::themeSelected, this, [this](QString t) {
-        theme_ = t;
-        for (int i = 0; i < tabs_->count(); ++i) {
-            auto* tab = qobject_cast<DocumentTab*>(tabs_->widget(i));
-            if (!tab) continue;
-            auto doc = tab->editor()->document();
-            if (!doc) continue;
-            rc_->requestRender(doc->path(), doc->text(), t);
+        // Phase 7: "auto" sentinel = follow the OS color scheme. Any other
+        // value is a concrete theme basename; remember it so future toggles
+        // back to manual mode restore the user's preference.
+        if (t == ThemeMenu::kAuto) {
+            themeMode_ = kModeAuto;
+        } else {
+            themeMode_  = kValueThemeManual;
+            userTheme_  = t;
         }
+        theme_ = resolveEffectiveTheme();
+        rerenderAllTabs(theme_);
     });
 
     tb->addSeparator();
@@ -401,7 +422,14 @@ void MainWindow::loadSettings() {
     QSettings s;
     lastFiles_       = s.value(kKeyLastFiles, QStringList()).toStringList();
     currentIndex_    = s.value(kKeyCurrentIndex, -1).toInt();
-    theme_           = s.value(kKeyTheme, "github").toString();
+    // Phase 7: themeMode_ persists whether the user wants to follow the OS
+    // color scheme; userTheme_ is the concrete theme they last picked (used
+    // when themeMode_ == "manual"). Older settings only wrote kKeyTheme —
+    // we treat that as "manual" + userTheme_ = saved value, which preserves
+    // the pre-Phase-7 experience.
+    themeMode_       = s.value(kKeyThemeMode, kValueThemeManual).toString();
+    userTheme_       = s.value(kKeyTheme,     kAutoLightTheme).toString();
+    theme_           = resolveEffectiveTheme();
     renderMode_      = s.value(kKeyRenderMode, kValueLive).toString();
     showLineNumbers_ = s.value(kKeyShowLineNumbers, true).toBool();
     splitterA_state_ = s.value(kKeySplitterA).toByteArray();
@@ -414,7 +442,11 @@ void MainWindow::loadSettings() {
         if (QFile::exists(f)) dm_->openFile(f);
     }
 
-    themeMenu_->setCurrent(theme_);
+    // Tell ThemeMenu which entry to tick: "auto" selects Follow System,
+    // anything else selects the matching concrete theme.
+    themeMenu_->setCurrent(themeMode_ == kModeAuto
+                           ? ThemeMenu::kAuto
+                           : userTheme_);
 
     manualAct_->setChecked(renderMode_ == kValueManual);
     liveAct_->setChecked(renderMode_ != kValueManual);
@@ -430,7 +462,8 @@ void MainWindow::saveSettings() {
     }
     s.setValue(kKeyLastFiles, lastFiles_);
     s.setValue(kKeyCurrentIndex, tabs_->currentIndex());
-    s.setValue(kKeyTheme, theme_);
+    s.setValue(kKeyThemeMode, themeMode_);
+    s.setValue(kKeyTheme,     userTheme_);
     s.setValue(kKeyRenderMode, renderMode_);
     s.setValue(kKeyShowLineNumbers, showLineNumbers_);
     if (auto* tab = currentTab()) {
@@ -440,6 +473,30 @@ void MainWindow::saveSettings() {
     }
     s.setValue(kKeyOutlineVisible, outlineVisible_);
     s.setValue(kKeyInfoVisible,    infoVisible_);
+}
+
+QString MainWindow::resolveEffectiveTheme() const {
+    return mdreader::theme::resolveTheme(
+        themeMode_, userTheme_,
+        QGuiApplication::styleHints()->colorScheme());
+}
+
+void MainWindow::rerenderAllTabs(const QString& effectiveTheme) {
+    for (int i = 0; i < tabs_->count(); ++i) {
+        auto* tab = qobject_cast<DocumentTab*>(tabs_->widget(i));
+        if (!tab) continue;
+        auto doc = tab->editor()->document();
+        if (!doc) continue;
+        rc_->requestRender(doc->path(), doc->text(), effectiveTheme,
+                           /*force=*/true);
+    }
+}
+
+void MainWindow::onSystemColorSchemeChanged(Qt::ColorScheme /*scheme*/) {
+    // No-op when the user has pinned a specific theme — their choice wins.
+    if (themeMode_ != kModeAuto) return;
+    theme_ = resolveEffectiveTheme();
+    rerenderAllTabs(theme_);
 }
 
 void MainWindow::closeEvent(QCloseEvent* e) {
