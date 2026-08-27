@@ -16,6 +16,7 @@ set(INTEGRATION_TESTS
     EditToPreviewTest
     ThemeSwitchTest
     ExternalReloadTest
+    RenderCoordinatorWorkerTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -72,6 +73,36 @@ set(TEST_EXTRA_SOURCES_ExternalReloadTest
 set(TEST_EXTRA_LIBS_ExternalReloadTest
     Qt6::Concurrent)
 
+# Task 27c: RenderCoordinatorWorkerTest asserts that requestRender's
+# enqueue path does not block the main thread. We bind a DocumentTab
+# (so PreviewView is live) and time the requestRender call only — we
+# do NOT wait for the worker to finish, so we only need sources for the
+# main-thread stack: Document + DocumentTab + its four children
+# (Editor/Preview/Outline/Info views) + the coordinator. RenderCoordinator
+# also pulls MarkdownRenderer / OutlineExtractor / WordCounter via
+# WorkerThread.h, and EditorView pulls ImageHandler. MarkdownRenderer in
+# turn references the cmark-gfm table extension, so we need the same
+# cmark libs as EditToPreviewTest (already in the default foreach).
+set(TEST_EXTRA_SOURCES_RenderCoordinatorWorkerTest
+    ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/DocumentTab.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/EditorView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/OutlineView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/InfoView.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/RenderCoordinator.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/WordCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/ImageHandler.cpp)
+
+# DocumentTab pulls Qt6::Widgets; RenderCoordinator's worker path pulls
+# Qt6::Concurrent (WorkerThread.h). PreviewView pulls
+# Qt6::WebEngineWidgets. Widgets and WebEngineWidgets are already in the
+# default foreach, but Concurrent must be added explicitly.
+set(TEST_EXTRA_LIBS_RenderCoordinatorWorkerTest
+    Qt6::Concurrent)
+
 # cmark-gfm-extensions references cmark-gfm symbols (e.g. cmark_arena_push),
 # so extensions must precede cmark-gfm_static on the link line. This matches
 # src/CMakeLists.txt. Unused by HtmlExportTest but cheap to keep here.
@@ -114,5 +145,5 @@ endforeach()
 
 # Integration tests use QtWebEngineWidgets, which needs a GUI platform.
 # Use offscreen in headless CI environments (libxcb-cursor0 is missing here).
-set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest integration_ExternalReloadTest PROPERTIES
+set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest integration_ExternalReloadTest integration_RenderCoordinatorWorkerTest PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
