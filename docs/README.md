@@ -76,4 +76,4 @@ MDReader 使用(并感谢)以下开源项目:
 
 ## 许可证
 
-MIT(待替换为实际许可证)。
+本项目以 [MIT 协议](LICENSE)开源。`Qt`(`LGPL v3`)、`cmark-gfm`(`BSD 2-Clause`)、`highlight.js`(`BSD 3-Clause`)、`MathJax`(`Apache 2.0`)各自的协议文本分别随其原始代码分发,详见上方"第三方依赖与开源声明"。
