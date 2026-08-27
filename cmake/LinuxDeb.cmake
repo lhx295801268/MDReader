@@ -17,6 +17,3 @@ file(WRITE ${_postinst}
      "exit 0\n")
 install(PROGRAMS ${_postinst} DESTINATION /var/lib/dpkg/info
         RENAME postinst)
-
-set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-    "${CMAKE_BINARY_DIR}/postinst;filename=postinst")

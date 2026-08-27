@@ -52,7 +52,7 @@ set(CPACK_PACKAGE_CONTACT "MDReader <noreply@example.com>")
 set(CPACK_GENERATOR "DEB")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 set(CPACK_DEBIAN_FILE_NAME "MDReader-${PROJECT_VERSION}-Linux.deb")
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6core6, libqt6gui6, libqt6widgets6, libqt6webenginewidgets6, libqt6concurrent6, libqt6webenginecore6, libqt6webengine6-data")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6core6, libqt6gui6, libqt6widgets6, libqt6webenginewidgets6, libqt6concurrent6, libqt6webenginecore6, libqt6webengine6-data, libqt6quick6, libqt6quickwidgets6, libqt6qml6, libqt6qmlmodels6, libqt6network6, libqt6printsupport6, libqt6dbus6, libqt6webchannel6, libqt6positioning6, libqt6opengl6")
 set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "Markdown reader/editor")
 
 include(CPack)
