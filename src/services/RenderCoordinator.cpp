@@ -49,6 +49,15 @@ void RenderCoordinator::requestRender(const QString& docId, const QString& markd
     it->markdown = markdown;
     it->theme = theme;
     it->frameId = nextFrameId_++;
+    // Show the loading overlay only for "discrete" renders: the initial
+    // render on file open, the manual Refresh button, external-change
+    // reloads, and theme rerenders. Live keystroke updates (force=false)
+    // skip the overlay so the user doesn't see a 250ms flash on every
+    // character — instead the overlay stays hidden while the preview
+    // smoothly updates in place. endLoading() is called from
+    // PreviewView::setMarkdownHtml(), which fires on every successful
+    // render regardless of how it was triggered.
+    if (force && it->preview) it->preview->beginLoading();
     if (mode_ == Manual && !force) return;
     it->timer->start();      // restart 250 ms
 }
