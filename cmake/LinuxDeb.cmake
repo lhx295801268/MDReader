@@ -1,10 +1,18 @@
-# 安装 .desktop / icon / mime
+# 安装 .desktop / icon / mime / launcher wrapper
 install(FILES ${CMAKE_SOURCE_DIR}/packaging/mdreader.desktop
         DESTINATION share/applications)
 install(FILES ${CMAKE_SOURCE_DIR}/packaging/mdreader.png
         DESTINATION share/icons/hicolor/128x128/apps)
 install(FILES ${CMAKE_SOURCE_DIR}/packaging/mdreader-mime.xml
         DESTINATION share/mime/packages)
+# Wrapper script: sets QTWEBENGINE_* env vars so the bundled
+# QtWebEngineProcess and its .pak resources are found. The .desktop
+# Exec= line points at this wrapper instead of /usr/bin/mdreader
+# directly so GUI launches from the application menu work without
+# requiring the user to export env vars themselves.
+install(PROGRAMS ${CMAKE_SOURCE_DIR}/packaging/mdreader.sh
+        DESTINATION bin
+        RENAME mdreader.sh)
 
 # postinst 触发更新
 set(_postinst "${CMAKE_BINARY_DIR}/postinst")

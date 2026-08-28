@@ -1,4 +1,5 @@
 #include "app/MainWindow.h"
+#include "app/DropHandler.h"
 #include "app/ThemeResolution.h"
 #include "documents/Document.h"
 #include "documents/DocumentManager.h"
@@ -23,6 +24,10 @@
 #include <QFileInfo>
 #include <QPointer>
 #include <QActionGroup>
+#include <QDropEvent>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QMimeData>
 #include <QTextCursor>
 #include <QTimer>
 #include <QMessageBox>
@@ -59,6 +64,11 @@ using mdreader::theme::kAutoDarkTheme;
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("MDReader");
     resize(1280, 800);
+    // Phase 8: accept external Markdown files dragged from a file manager.
+    // The actual filtering (.md extension, local files only) happens in
+    // dragEnterEvent → DropHandler::canAccept(); dropEvent runs the file
+    // list through DocumentManager::openFile().
+    setAcceptDrops(true);
     dm_ = new DocumentManager(this);
     rc_ = new RenderCoordinator(this);
     // Phase 4: external-change notifier. Watches each opened document's
@@ -512,6 +522,43 @@ void MainWindow::onSystemColorSchemeChanged(Qt::ColorScheme /*scheme*/) {
     if (themeMode_ != kModeAuto) return;
     theme_ = resolveEffectiveTheme();
     rerenderAllTabs(theme_);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* e) {
+    // Accept the proposed action iff the payload carries at least one
+    // local file. The full extension / existence filter happens in
+    // dropEvent — dragEnter just needs to say "yes the user is dragging
+    // files at us" so the OS shows the copy cursor.
+    if (mdreader::drop::canAccept(e->mimeData())) {
+        e->acceptProposedAction();
+    } else {
+        e->ignore();
+    }
+}
+
+void MainWindow::dragMoveEvent(QDragMoveEvent* e) {
+    // Same gate as dragEnter — without it the cursor reverts to "no
+    // drop" mid-flight.
+    if (mdreader::drop::canAccept(e->mimeData())) {
+        e->acceptProposedAction();
+    } else {
+        e->ignore();
+    }
+}
+
+void MainWindow::dropEvent(QDropEvent* e) {
+    const QStringList paths = mdreader::drop::extractLocalMarkdownPaths(e->mimeData());
+    if (paths.isEmpty()) {
+        e->ignore();
+        return;
+    }
+    // Forward each path to DocumentManager; it dispatches the read to a
+    // worker thread and emits documentLoaded when done, which we wire up
+    // in the ctor to create a tab per file.
+    for (const QString& p : paths) {
+        dm_->openFile(p);
+    }
+    e->acceptProposedAction();
 }
 
 void MainWindow::closeEvent(QCloseEvent* e) {

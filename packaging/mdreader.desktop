@@ -2,7 +2,7 @@
 Type=Application
 Name=MDReader
 Comment=Markdown reader and editor
-Exec=mdreader %F
+Exec=/usr/bin/mdreader.sh %F
 Icon=mdreader
 Terminal=false
 Categories=Office;TextEditor;Utility;

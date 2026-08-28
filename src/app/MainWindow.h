@@ -6,6 +6,10 @@
 #include <memory>
 #include "services/FileWatcher.h"
 
+class QMimeData;
+class QDropEvent;
+class QDragEnterEvent;
+class QDragMoveEvent;
 class QTabWidget;
 class DocumentManager;
 class DocumentTab;
@@ -22,6 +26,14 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* e) override;
+
+    // Drag-and-drop: accept external Markdown files dropped from a file
+    // manager. Filtering lives in src/app/DropHandler.h so it's unit
+    // tested without spinning up the MainWindow GUI stack. Only .md-ish
+    // files are opened; non-files / folders / remote URLs are ignored.
+    void dragEnterEvent(QDragEnterEvent* e) override;
+    void dragMoveEvent(QDragMoveEvent* e) override;
+    void dropEvent(QDropEvent* e) override;
 
 private slots:
     void newDocument();

@@ -18,6 +18,7 @@ set(UNIT_TESTS
     FileWatcherDebounceTest
     ThemeMenuTest
     MainWindowThemeTest
+    DropHandlerTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -74,6 +75,9 @@ set(TEST_EXTRA_LIBS_RenderFrameDropTest
 # Qt6::Widgets. Test exercises signals/slots programmatically — works
 # under QT_QPA_PLATFORM=offscreen.
 set(TEST_EXTRA_LIBS_ThemeMenuTest Qt6::Widgets)
+# DropHandler is header-only; no extra sources. Test uses QtTest + QMimeData
+# (already in Qt6::Core via QObject linkage).
+set(TEST_EXTRA_LIBS_DropHandlerTest Qt6::Widgets)
 
 foreach(test_name ${UNIT_TESTS})
     qt_add_executable(${test_name} ${test_name}.cpp ${TEST_EXTRA_SOURCES_${test_name}})

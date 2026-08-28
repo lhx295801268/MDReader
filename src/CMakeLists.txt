@@ -1,4 +1,4 @@
-find_package(Qt6 6.2 REQUIRED COMPONENTS Concurrent)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Concurrent)
 
 qt_add_executable(mdreader
     app/main.cpp
@@ -49,3 +49,34 @@ target_include_directories(mdreader PRIVATE
 )
 
 install(TARGETS mdreader RUNTIME DESTINATION bin)
+
+# Phase 8: bundle Qt 6.5.3 webengine runtime alongside the binary so the
+# deb is self-contained. Runs at install(CODE ...) time so it sees the
+# freshly-staged mdreader at ${CMAKE_INSTALL_PREFIX}/bin/mdreader.
+# Set QT653_SRC_ROOT to the local Qt SDK root when configuring; the
+# default below auto-discovers /home/lhx/Qt/6.5.3/gcc_64 for the user's
+# dev setup. Override with -DQT653_SRC_ROOT=/path/to/Qt/6.5.x/gcc_64 for
+# other machines.
+if(NOT DEFINED QT653_SRC_ROOT)
+    set(_qt653_default "/home/lhx/Qt/6.5.3/gcc_64")
+    if(EXISTS "${_qt653_default}/lib/cmake/Qt6/Qt6Config.cmake")
+        set(QT653_SRC_ROOT "${_qt653_default}")
+    endif()
+endif()
+if(DEFINED QT653_SRC_ROOT AND EXISTS "${QT653_SRC_ROOT}/lib/cmake/Qt6/Qt6Config.cmake")
+    install(CODE "
+        set(QT653_SRC_ROOT \"${QT653_SRC_ROOT}\")
+        # At install time the actual on-disk prefix is $DESTDIR/$prefix,
+        # because CMake applies DESTDIR when staging (so a single source
+        # tree can produce multiple debs without rebuilding). $ENV{DESTDIR}
+        # is the env var the user (or CPack) passes to `cmake --install`;
+        # default to empty when unset.
+        if(\"\$ENV{DESTDIR}\" STREQUAL \"\")
+            set(STAGE_DIR \"\${CMAKE_INSTALL_PREFIX}\")
+        else()
+            set(STAGE_DIR \"\$ENV{DESTDIR}/\${CMAKE_INSTALL_PREFIX}\")
+        endif()
+        set(QT653_BIN_SRC \"${CMAKE_BINARY_DIR}/bin/mdreader\")
+        include(\"${CMAKE_SOURCE_DIR}/cmake/BundleQt653.cmake\")
+    ")
+endif()
