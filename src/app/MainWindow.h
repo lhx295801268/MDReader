@@ -15,6 +15,7 @@ class DocumentManager;
 class DocumentTab;
 class RenderCoordinator;
 class ThemeMenu;
+class AppTranslator;
 class QAction;
 namespace Qt { enum class ColorScheme; }
 
@@ -34,6 +35,14 @@ protected:
     void dragEnterEvent(QDragEnterEvent* e) override;
     void dragMoveEvent(QDragMoveEvent* e) override;
     void dropEvent(QDropEvent* e) override;
+
+    // Catch-all event filter for double-click → fullscreen toggle on
+    // "background" areas of the window (toolbar empty area, status bar,
+    // any place that doesn't have a meaningful interactive widget). We
+    // filter on the QToolBar's events because that's the most prominent
+    // blank space the user might double-click. Action buttons are
+    // excluded so their normal click handling still works.
+    bool eventFilter(QObject* watched, QEvent* e) override;
 
 private slots:
     void newDocument();
@@ -76,6 +85,13 @@ private:
     // follow-system mode.
     void rerenderAllTabs(const QString& effectiveTheme);
 
+    // Phase 10: refresh every toolbar action's text after the user
+    // switches language. Qt's automatic LanguageChange handling covers
+    // QPushButton / QLabel etc., but QAction's text() doesn't get re-run
+    // unless we explicitly call setText() again. Called from the language
+    // switcher's lambda.
+    void retranslateToolbar();
+
     DocumentTab* currentTab() const;
 
     // Phase 4: linear scan of tabs_ to find the DocumentTab whose editor is
@@ -106,7 +122,24 @@ private:
     QAction* liveAct_ = nullptr;
     QAction* manualAct_ = nullptr;
     QAction* refreshAct_ = nullptr;
+    // Phase 10: every toolbar action lives on this list, so
+    // retranslateToolbar() can call setText(tr(...)) on each one when the
+    // user switches language. Without this list, the toolbar text would be
+    // frozen at the language that was active when buildUi() ran.
+    QList<QAction*> toolbarActions_;
+    // Phase 10: language switcher actions (English / 简体中文). Kept as
+    // members so retranslateToolbar() can update their check state when
+    // the active language flips (and so we can connect them once at
+    // construction time without losing the pointers).
+    QAction* langEnAct_ = nullptr;
+    QAction* langZhAct_ = nullptr;
     ThemeMenu* themeMenu_ = nullptr;
+    // Phase 10: in-app English/Chinese translator. Owned by QApplication
+    // (we install it via QApplication::installTranslator in the ctor);
+    // MainWindow holds a raw pointer to call setLanguage() /
+    // retranslateRegistered() when the user picks a different language
+    // from the toolbar.
+    AppTranslator* translator_ = nullptr;
     QByteArray splitterA_state_;
     QByteArray splitterB_state_;
     QByteArray splitterC_state_;

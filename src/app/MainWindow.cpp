@@ -12,10 +12,13 @@
 #include "services/RenderCoordinator.h"
 #include "services/WordCounter.h"
 #include "services/OutlineExtractor.h"
+#include "services/AppTranslator.h"
 #include <QApplication>
 #include <QTabWidget>
 #include <QAction>
 #include <QToolBar>
+#include <QToolButton>
+#include <QMouseEvent>
 #include <QFileDialog>
 #include <QSettings>
 #include <QFile>
@@ -71,6 +74,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setAcceptDrops(true);
     dm_ = new DocumentManager(this);
     rc_ = new RenderCoordinator(this);
+    // Phase 10: install the in-app translator so all tr() calls below
+    // resolve through our English↔Chinese table. QApplication takes
+    // ownership of the translator. We also keep a raw pointer for the
+    // language switcher in the toolbar to call setLanguage() +
+    // retranslateRegistered() when the user picks a different language.
+    translator_ = new AppTranslator(this);
+    QApplication::installTranslator(translator_);
     // Phase 4: external-change notifier. Watches each opened document's
     // path; emits externalModified(path, bytes) after debounce when the file
     // is rewritten on disk by another process. We react in onExternalChange.
@@ -113,10 +123,28 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(dm_, &DocumentManager::documentLoaded, this,
             [self, savedIndex, expectedCount](std::shared_ptr<Document> doc) {
         if (!self) return;
+        // Dedup at the UI layer too: if a tab for this path already exists
+        // (e.g. user double-clicked the same .md again, or another path
+        // resolved to the same canonical file via symlink), just focus it.
+        // DocumentManager::openFile has its own check but it runs on a
+        // worker thread; this one is deterministic on the main thread
+        // before we allocate a DocumentTab.
+        if (auto* existing = self->tabForDocument_byPath(doc->path())) {
+            self->tabs_->setCurrentWidget(existing);
+            return;
+        }
         auto* tab = new DocumentTab(doc);
         // Task 20: pass the tab so RenderCoordinator can dispatch outline +
         // stats back to it after each render.
         self->rc_->bind(doc->path(), tab->preview(), tab);
+        // Kick off the first render for this document. Without this call,
+        // the preview stays empty — bind() only registers the view with
+        // the coordinator, it doesn't dispatch a render job. Manual refresh,
+        // file-watcher updates, and theme rerenders all go through this
+        // same requestRender path, so the initial render reuses the same
+        // pipeline (worker thread → postToMain → PreviewView::setMarkdownHtml).
+        self->rc_->requestRender(doc->path(), doc->text(), self->theme_,
+                                 /*force=*/true);
         // Outline click → editor cursor + preview scroll;
         // editor cursor → outline highlight.
         self->wireTabSync(tab);
@@ -148,21 +176,40 @@ void MainWindow::buildUi() {
     setCentralWidget(tabs_);
 
     auto* tb = addToolBar("Main");
-    auto* newAct = tb->addAction("New");
-    auto* openAct = tb->addAction("Open");
-    auto* saveAct = tb->addAction("Save");
+    // Phase 9: double-click on the toolbar's empty area (the bit of space
+    // to the right of the action buttons, or anywhere outside the action
+    // group) toggles fullscreen. The eventFilter checks whether the dbl-click
+    // landed on a QToolButton (action) and skips if so, so the buttons
+    // keep their normal click behavior.
+    tb->installEventFilter(this);
+    // Phase 10: every visible string in the toolbar is wrapped in tr() so
+    // AppTranslator can substitute the Chinese mapping on LanguageChange.
+    // New strings should be added both here AND to AppTranslator::zhTable_.
+    auto* newAct = tb->addAction(tr("New"));
+    auto* openAct = tb->addAction(tr("Open"));
+    auto* saveAct = tb->addAction(tr("Save"));
     tb->addSeparator();
-    auto* pdfAct = tb->addAction("Export PDF");
-    auto* htmlAct = tb->addAction("Export HTML");
+    auto* pdfAct = tb->addAction(tr("Export PDF"));
+    auto* htmlAct = tb->addAction(tr("Export HTML"));
     tb->addSeparator();
-    outlineAct_ = tb->addAction("Outline");
+    outlineAct_ = tb->addAction(tr("Outline"));
     outlineAct_->setCheckable(true); outlineAct_->setChecked(true);
-    infoAct_ = tb->addAction("Info");
+    infoAct_ = tb->addAction(tr("Info"));
     infoAct_->setCheckable(true); infoAct_->setChecked(true);
 
     themeMenu_ = new ThemeMenu(this);
-    auto* themeBtn = tb->addAction("Theme");
+    auto* themeBtn = tb->addAction(tr("Theme"));
     themeBtn->setMenu(themeMenu_);
+    // Force InstantPopup on the toolbar button so a single click shows
+    // the theme menu (default DelayedPopup requires press-and-hold).
+    for (QObject* child : tb->children()) {
+        auto* tbBtn = qobject_cast<QToolButton*>(child);
+        if (!tbBtn) continue;
+        if (tbBtn->defaultAction() == themeBtn) {
+            tbBtn->setPopupMode(QToolButton::InstantPopup);
+            break;
+        }
+    }
     connect(themeMenu_, &ThemeMenu::themeSelected, this, [this](QString t) {
         // Phase 7: "auto" sentinel = follow the OS color scheme. Any other
         // value is a concrete theme basename; remember it so future toggles
@@ -178,9 +225,9 @@ void MainWindow::buildUi() {
     });
 
     tb->addSeparator();
-    liveAct_ = tb->addAction("Live");
+    liveAct_ = tb->addAction(tr("Live"));
     liveAct_->setCheckable(true); liveAct_->setChecked(true);
-    manualAct_ = tb->addAction("Manual");
+    manualAct_ = tb->addAction(tr("Manual"));
     manualAct_->setCheckable(true);
     QActionGroup* grp = new QActionGroup(this);
     grp->addAction(liveAct_); grp->addAction(manualAct_);
@@ -194,7 +241,70 @@ void MainWindow::buildUi() {
         if (on) { rc_->setMode(RenderCoordinator::Manual); renderMode_ = kValueManual; }
     });
 
-    refreshAct_ = tb->addAction("Refresh");
+    refreshAct_ = tb->addAction(tr("Refresh"));
+    // Phase 10: language switcher. Sits at the right edge of the toolbar
+    // so it doesn't disrupt the natural left-to-right action layout. Two
+    // entries: English (default) and 简体中文.
+    tb->addSeparator();
+    auto* langBtn = tb->addAction(tr("Language"));
+    QMenu* langMenu = new QMenu(this);
+    langEnAct_ = langMenu->addAction(tr("English"));
+    langZhAct_ = langMenu->addAction(tr("\xe7\xae\x80\xe4\xbd\x93\xe4\xb8\xad\xe6\x96\x87")); // 简体中文
+    langEnAct_->setCheckable(true); langEnAct_->setChecked(true);
+    langZhAct_->setCheckable(true);
+    QActionGroup* langGrp = new QActionGroup(this);
+    langGrp->addAction(langEnAct_); langGrp->addAction(langZhAct_);
+    langGrp->setExclusive(true);
+    langBtn->setMenu(langMenu);
+    // Some Qt styles need an explicit popup mode to make a QAction with a
+    // menu attached behave as a menu-button on the toolbar. The default
+    // (DelayedPopup) shows the menu on press-and-hold; InstantPopup
+    // shows it on a single click, which matches what users expect for a
+    // language switcher. Find the QToolButton Qt creates internally for
+    // `langBtn` and set its popupMode.
+    for (QObject* child : tb->children()) {
+        auto* tbBtn = qobject_cast<QToolButton*>(child);
+        if (!tbBtn) continue;
+        if (tbBtn->defaultAction() == langBtn) {
+            tbBtn->setPopupMode(QToolButton::InstantPopup);
+            break;
+        }
+    }
+    connect(langEnAct_, &QAction::triggered, this, [this]() {
+        qWarning("mdreader: language switch → English");
+        translator_->setLanguage(AppTranslator::English);
+        retranslateToolbar();
+        themeMenu_->setCurrent(themeMode_ == kModeAuto ? ThemeMenu::kAuto : userTheme_);
+    });
+    connect(langZhAct_, &QAction::triggered, this, [this]() {
+        qWarning("mdreader: language switch → Chinese");
+        translator_->setLanguage(AppTranslator::Chinese);
+        retranslateToolbar();
+        themeMenu_->setCurrent(themeMode_ == kModeAuto ? ThemeMenu::kAuto : userTheme_);
+    });
+
+    // Phase 10: stash each toolbar action's source English text into
+    // QAction::data() so retranslateToolbar() can call tr() again with the
+    // same source literal after a language flip. Without this, the toolbar
+    // text is frozen at whatever language was active during buildUi().
+    auto stash = [](QAction* a, const char* src) {
+        if (a) a->setData(QString::fromUtf8(src));
+    };
+    stash(newAct,    "New");
+    stash(openAct,   "Open");
+    stash(saveAct,   "Save");
+    stash(pdfAct,    "Export PDF");
+    stash(htmlAct,   "Export HTML");
+    stash(outlineAct_, "Outline");
+    stash(infoAct_,  "Info");
+    stash(themeBtn,  "Theme");
+    stash(liveAct_,  "Live");
+    stash(manualAct_,"Manual");
+    stash(refreshAct_,"Refresh");
+    stash(langBtn,   "Language");
+    stash(langEnAct_,"English");
+    // langZhAct_ uses 简体中文 as its source literal (no English fallback
+    // needed — that's the canonical Chinese display name).
     refreshAct_->setEnabled(false);  // disabled while in Live mode (no Refresh needed)
     connect(refreshAct_, &QAction::triggered, this, [this] {
         auto* tab = currentTab();
@@ -274,13 +384,22 @@ void MainWindow::wireTabSync(DocumentTab* tab) {
 }
 
 void MainWindow::openDocument() {
-    auto path = QFileDialog::getOpenFileName(this, "Open MD",
-                                             QString(), "Markdown (*.md *.markdown)");
+    auto path = QFileDialog::getOpenFileName(this, tr("Open MD"),
+                                             QString(), tr("Markdown (*.md *.markdown)"));
     if (!path.isEmpty()) dm_->openFile(path);
 }
 
 void MainWindow::openFileFromCli(const QString& path) {
-    if (!path.isEmpty()) dm_->openFile(path);
+    if (path.isEmpty()) return;
+    // Focus the existing tab if this path is already open — covers the
+    // common case where the user double-clicks a .md that's already on
+    // screen, or session-restore brings a file back while it's also still
+    // on disk from a prior run that wasn't cleanly closed.
+    if (auto* existing = tabForDocument_byPath(path)) {
+        tabs_->setCurrentWidget(existing);
+        return;
+    }
+    dm_->openFile(path);
 }
 
 bool MainWindow::saveCurrent() {
@@ -289,8 +408,8 @@ bool MainWindow::saveCurrent() {
     auto doc = tab->editor()->document();
     if (!doc) return false;
     if (doc->path().isEmpty()) {
-        auto path = QFileDialog::getSaveFileName(this, "Save MD",
-                                                 QString(), "Markdown (*.md)");
+        auto path = QFileDialog::getSaveFileName(this, tr("Save MD"),
+                                                 QString(), tr("Markdown (*.md)"));
         if (path.isEmpty()) return false;
         qWarning("MainWindow::saveCurrent: Save-As for new docs is a Task 24 stub "
                  "(user picked %s, ignoring)", qUtf8Printable(path));
@@ -302,8 +421,8 @@ bool MainWindow::saveCurrent() {
 void MainWindow::exportCurrentPdf() {
     auto* tab = currentTab();
     if (!tab) return;
-    auto path = QFileDialog::getSaveFileName(this, "Export PDF",
-                                             QString(), "PDF (*.pdf)");
+    auto path = QFileDialog::getSaveFileName(this, tr("Export PDF"),
+                                             QString(), tr("PDF (*.pdf)"));
     if (path.isEmpty()) return;
     tab->preview()->exportPdf(path);
 }
@@ -311,8 +430,8 @@ void MainWindow::exportCurrentPdf() {
 void MainWindow::exportCurrentHtml() {
     auto* tab = currentTab();
     if (!tab) return;
-    auto path = QFileDialog::getSaveFileName(this, "Export HTML",
-                                             QString(), "HTML (*.html *.htm)");
+    auto path = QFileDialog::getSaveFileName(this, tr("Export HTML"),
+                                             QString(), tr("HTML (*.html *.htm)"));
     if (path.isEmpty()) return;
     // Qt 6 QWebEnginePage::toHtml is async (callback-based); use a local
     // event loop to fetch the current HTML synchronously for export.
@@ -564,4 +683,64 @@ void MainWindow::dropEvent(QDropEvent* e) {
 void MainWindow::closeEvent(QCloseEvent* e) {
     saveSettings();
     QMainWindow::closeEvent(e);
+}
+
+void MainWindow::retranslateToolbar() {
+    // Walk every action on the main toolbar and re-set its text from the
+    // current tr() mapping. Each toolbar action carries the original
+    // English source literal in QAction::data() (set in buildUi()), so
+    // we can re-translate without losing context. We do this instead of
+    // relying on Qt's automatic LanguageChange handling because
+    // QAction::setText isn't called automatically on translator swap —
+    // only widgets like QPushButton / QLabel re-run their tr() calls.
+    const auto toolbars = findChildren<QToolBar*>();
+    for (QToolBar* tb : toolbars) {
+        for (QAction* a : tb->actions()) {
+            const QString src = a->data().toString();
+            if (src.isEmpty()) continue;
+            // Convert back to const char* so tr() picks the right entry
+            // from the active translator (matching the original literal
+            // byte-for-byte).
+            a->setText(tr(src.toUtf8().constData()));
+        }
+    }
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* e) {
+    // Phase 9: double-click on the toolbar's empty area → toggle fullscreen.
+    // We only react when:
+    //   1. The watched object is a QToolBar (we installed the filter on `tb`
+    //      in buildUi()).
+    //   2. The event is a left-button double-click.
+    //   3. The dbl-click landed on the toolbar itself OR on a non-button
+    //      child (separator, layout stretch). If the target is a
+    //      QToolButton we return false so its normal click handler still
+    //      runs (we don't want double-clicking "Refresh" to fullscreen
+    //      instead of triggering the action).
+    if (e->type() == QEvent::MouseButtonDblClick) {
+        auto* mbe = static_cast<QMouseEvent*>(e);
+        if (mbe->button() == Qt::LeftButton && qobject_cast<QToolBar*>(watched)) {
+            // Walk up to find what's actually under the cursor. The event
+            // arrives with `watched` as the toolbar, but childAt() inside
+            // the toolbar tells us whether the user clicked on a button or
+            // on the empty area.
+            auto* tb = static_cast<QToolBar*>(watched);
+            QPoint p = mbe->position().toPoint();
+            // For events delivered to the toolbar itself, position() is
+            // already in toolbar-local coords. For child events it would
+            // be in the child's coords; the cast above keeps it simple
+            // because we filter at the toolbar level.
+            QWidget* child = tb->childAt(p);
+            if (!child || !qobject_cast<QToolButton*>(child)) {
+                if (windowState() & Qt::WindowFullScreen) {
+                    setWindowState(windowState() & ~Qt::WindowFullScreen);
+                } else {
+                    setWindowState(windowState() | Qt::WindowFullScreen);
+                }
+                return true;  // consume so it doesn't bubble
+            }
+            // Else: a button was dbl-clicked — let it through.
+        }
+    }
+    return QMainWindow::eventFilter(watched, e);
 }
