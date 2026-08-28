@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 # which CMake >= 4.0 rejects by default. Setting CMAKE_POLICY_VERSION_MINIMUM
 # to 3.5 downgrades the policy floor just enough to accept it.
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-project(MDReader VERSION 0.1.0 LANGUAGES C CXX)
+project(MDReader VERSION 0.1.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -15,8 +15,14 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets WebEngineWidgets)
-qt_standard_project_setup()
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets WebEngineWidgets)
+# qt_standard_project_setup() is Qt 6.3+; on 6.2 we set the same flags manually.
+if(NOT COMMAND qt_standard_project_setup)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTORCC ON)
+    set(CMAKE_AUTOUIC ON)
+    set(CMAKE_INCLUDE_CURRENT_DIR ON)
+endif()
 
 include(FetchContent)
 FetchContent_Declare(

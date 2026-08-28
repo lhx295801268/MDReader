@@ -70,9 +70,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     // Phase 7: follow the OS color scheme. The slot is harmless when the
     // user has pinned a specific theme (themeMode_ == "manual") — it just
     // recomputes theme_ and skips the rerender.
+    // Requires Qt 6.5+ (QStyleHints::colorSchemeChanged). On older Qt we
+    // fall back to manual-only mode: the resolver still returns the user's
+    // pinned theme, just without auto-tracking OS flips.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     connect(QGuiApplication::styleHints(),
             &QStyleHints::colorSchemeChanged,
             this, &MainWindow::onSystemColorSchemeChanged);
+#endif
     buildUi();
     loadSettings();
     // Defense-in-depth: loadSettings() already drives setMode() via the
@@ -476,9 +481,19 @@ void MainWindow::saveSettings() {
 }
 
 QString MainWindow::resolveEffectiveTheme() const {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    using mdreader::theme::SystemColorScheme;
+    const SystemColorScheme systemScheme = static_cast<SystemColorScheme>(
+        static_cast<int>(QGuiApplication::styleHints()->colorScheme()));
+#else
+    // Qt < 6.5 has no colorScheme() — we have no way to read the OS scheme,
+    // so resolveTheme() will be called with Unknown and fall into the
+    // light branch (kAutoLightTheme). Follow-system is effectively disabled.
+    using mdreader::theme::SystemColorScheme;
+    const SystemColorScheme systemScheme = SystemColorScheme::Unknown;
+#endif
     return mdreader::theme::resolveTheme(
-        themeMode_, userTheme_,
-        QGuiApplication::styleHints()->colorScheme());
+        themeMode_, userTheme_, systemScheme);
 }
 
 void MainWindow::rerenderAllTabs(const QString& effectiveTheme) {

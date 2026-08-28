@@ -1,5 +1,7 @@
 #include "documents/Document.h"
 
+#include <mutex>
+
 Document::Document() = default;
 
 Document::Document(QString path, QString initialText)

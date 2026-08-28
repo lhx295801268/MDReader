@@ -1,4 +1,4 @@
-find_package(Qt6 6.5 REQUIRED COMPONENTS Concurrent)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Concurrent)
 
 qt_add_executable(mdreader
     app/main.cpp

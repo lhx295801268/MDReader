@@ -1,6 +1,6 @@
 #include <QtTest>
-#include <Qt>
 #include "app/ThemeResolution.h"
+using mdreader::theme::SystemColorScheme;
 
 // Phase 7: resolveTheme() is a pure (mode, userTheme, systemScheme) →
 // concrete theme function. Lives in a header so we don't have to link
@@ -20,14 +20,14 @@ private slots:
 void MainWindowThemeTest::auto_light_returns_light_theme() {
     QCOMPARE(mdreader::theme::resolveTheme(QStringLiteral("auto"),
                                            QStringLiteral("dracula"),
-                                           Qt::ColorScheme::Light),
+                                           SystemColorScheme::Light),
              QStringLiteral("github"));
 }
 
 void MainWindowThemeTest::auto_dark_returns_dark_theme() {
     QCOMPARE(mdreader::theme::resolveTheme(QStringLiteral("auto"),
                                            QStringLiteral("github"),
-                                           Qt::ColorScheme::Dark),
+                                           SystemColorScheme::Dark),
              QStringLiteral("github-dark"));
 }
 
@@ -36,14 +36,14 @@ void MainWindowThemeTest::auto_unknown_returns_light_theme() {
     // been probed — must not crash, must not silently pick dark.
     QCOMPARE(mdreader::theme::resolveTheme(QStringLiteral("auto"),
                                            QStringLiteral("one-dark"),
-                                           Qt::ColorScheme::Unknown),
+                                           SystemColorScheme::Unknown),
              QStringLiteral("github"));
 }
 
 void MainWindowThemeTest::manual_returns_userTheme_unchanged() {
     QCOMPARE(mdreader::theme::resolveTheme(QStringLiteral("manual"),
                                            QStringLiteral("solarized-dark"),
-                                           Qt::ColorScheme::Light),
+                                           SystemColorScheme::Light),
              QStringLiteral("solarized-dark"));
 }
 
@@ -52,7 +52,7 @@ void MainWindowThemeTest::manual_ignores_system_scheme() {
     // OS flips to dark, a user-picked concrete theme must stick.
     QCOMPARE(mdreader::theme::resolveTheme(QStringLiteral("manual"),
                                            QStringLiteral("github-light-attempt"),
-                                           Qt::ColorScheme::Dark),
+                                           SystemColorScheme::Dark),
              QStringLiteral("github-light-attempt"));
 }
 

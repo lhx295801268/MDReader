@@ -9,15 +9,25 @@
 //   - mode            : "auto" (follow OS) or anything else (use userTheme)
 //   - userTheme       : the concrete theme basename the user last picked,
 //                       only consulted when mode != "auto"
-//   - systemScheme    : QStyleHints::colorScheme() at the time of the call
+//   - systemScheme    : OS colorScheme at the time of the call (own enum,
+//                       translation layer lives at the call site)
 //
 // Only "auto" consults systemScheme; any other mode returns userTheme
 // verbatim, even when the OS flips to dark — once the user has pinned a
 // concrete theme their choice wins until they switch back to Follow System.
+//
+// We define our own ColorScheme enum (instead of Qt::ColorScheme) so the
+// header compiles on Qt 6.2 — Qt::ColorScheme was added in Qt 6.5. The
+// call site (MainWindow) translates Qt::ColorScheme -> SystemColorScheme
+// when the platform API is available.
 #include <QString>
-#include <Qt>
 
 namespace mdreader::theme {
+
+// Three-state enum mirrors Qt::ColorScheme semantically; same numeric
+// values as Qt::ColorScheme so callers can static_cast when the Qt enum
+// is available.
+enum class SystemColorScheme : int { Unknown = 0, Light = 1, Dark = 2 };
 
 // Sentinel values shared between MainWindow (writes QSettings keys) and
 // ThemeMenu (the "Follow System" menu entry emits "auto").
@@ -31,13 +41,13 @@ inline constexpr auto kAutoDarkTheme   = "github-dark";
 
 inline QString resolveTheme(const QString& mode,
                             const QString& userTheme,
-                            Qt::ColorScheme systemScheme) {
+                            SystemColorScheme systemScheme) {
     if (mode == QLatin1String(kModeAuto)) {
         // Unknown (the transient startup value before Qt has probed the
         // platform) falls in the light branch — same default the rest of
         // the app uses for kAutoLightTheme. We'd rather render light
         // than crash on a bad enum comparison.
-        return systemScheme == Qt::ColorScheme::Dark
+        return systemScheme == SystemColorScheme::Dark
             ? QLatin1String(kAutoDarkTheme)
             : QLatin1String(kAutoLightTheme);
     }
