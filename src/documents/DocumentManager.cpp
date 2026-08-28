@@ -9,6 +9,18 @@
 DocumentManager::DocumentManager(QObject* parent) : QObject(parent) {}
 
 void DocumentManager::openFile(const QString& path) {
+    // Cheap main-thread dedup: if a doc with this absolute path is already
+    // loaded, do nothing. The caller (MainWindow) is also expected to check
+    // via findByPath() BEFORE this and focus the existing tab — but we
+    // re-check here so direct callers (drag‑drop, Open dialog) that don't
+    // pre‑screen still avoid spawning a duplicate worker read + tab.
+    if (!path.isEmpty()) {
+        QFileInfo fi(path);
+        const QString abs = fi.absoluteFilePath();
+        for (const auto& d : docs_) {
+            if (d && d->path() == abs) return;
+        }
+    }
     QPointer<DocumentManager> self = this;
     (void)QtConcurrent::run(QThreadPool::globalInstance(), [self, path] {
         QFile f(path);
@@ -22,12 +34,29 @@ void DocumentManager::openFile(const QString& path) {
         QFileInfo fi(path);
         postToMain([self, fi, content]() mutable {
             if (!self) return;   // DocumentManager destroyed mid-flight
-            auto doc = std::make_shared<Document>(fi.absoluteFilePath(), content);
+            // Re-check inside the bounce: another openFile() for the same
+            // path could have landed between our main-thread check above
+            // and this postToMain callback (the worker read takes time).
+            const QString abs = fi.absoluteFilePath();
+            for (const auto& d : self->docs_) {
+                if (d && d->path() == abs) return;
+            }
+            auto doc = std::make_shared<Document>(abs, content);
             self->docs_ << doc;
             emit self->documentAdded(doc);
             emit self->documentLoaded(doc);
         });
     });
+}
+
+std::shared_ptr<Document> DocumentManager::findByPath(const QString& path) const {
+    if (path.isEmpty()) return nullptr;
+    QFileInfo fi(path);
+    const QString abs = fi.absoluteFilePath();
+    for (const auto& d : docs_) {
+        if (d && d->path() == abs) return d;
+    }
+    return nullptr;
 }
 
 std::shared_ptr<Document> DocumentManager::addNew(const QString& initialText) {
