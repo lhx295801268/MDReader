@@ -43,6 +43,9 @@
 #include <QShortcut>
 #include <QKeySequence>
 #include "services/FileWatcher.h"
+#include "app/TitleBarFullscreen.h"
+#include <QEvent>
+#include <QKeyEvent>
 
 namespace {
 constexpr auto kKeyLastFiles       = "session/lastFiles";
@@ -826,4 +829,48 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* e) {
         }
     }
     return QMainWindow::eventFilter(watched, e);
+}
+
+void MainWindow::changeEvent(QEvent* e) {
+    // Phase 13: redirect WM-driven maximize events into WindowFullScreen.
+    //
+    // The native title bar is owned by the window manager, so we never see
+    // the double-click itself. What we do see is the resulting state
+    // change: WM maximizes the window → Qt fires WindowStateChange with
+    // oldState() = the prior state. We use the helper to decide what state
+    // to apply (see app/TitleBarFullscreen.h for the rules and rationale).
+    if (e->type() == QEvent::WindowStateChange) {
+        auto* wse = static_cast<QWindowStateChangeEvent*>(e);
+        const Qt::WindowStates target =
+            mdreader::window::redirectTitleBarMaximize(windowState(),
+                                                       wse->oldState());
+        if (target != windowState()) {
+            // setWindowState fires WindowStateChange a second time. On
+            // that re-entry the helper returns `target` unchanged
+            // (idempotent — the enteringMaximize flag is false because
+            // the redirected state already carries WindowFullScreen),
+            // so the recursive call is a no-op and we don't loop.
+            setWindowState(target);
+        }
+        // Consume the event so the base class doesn't try to apply our
+        // already-handled target a second time (harmless but wasteful).
+        return;
+    }
+    QMainWindow::changeEvent(e);
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* e) {
+    // Phase 13: Esc exits fullscreen. We only intercept Esc when we're
+    // actually in fullscreen — otherwise we'd swallow the user's Esc in
+    // the editor (e.g. closing an autocompletion popup, dismissing the
+    // FindBar's own shortcut). The FindBar handles its own widget-scoped
+    // Esc shortcut, so when the bar is visible Esc reaches it first;
+    // when the bar is hidden Esc propagates up to us.
+    if (e->key() == Qt::Key_Escape
+        && (windowState() & Qt::WindowFullScreen)) {
+        setWindowState(windowState() & ~Qt::WindowFullScreen);
+        e->accept();
+        return;
+    }
+    QMainWindow::keyPressEvent(e);
 }

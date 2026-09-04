@@ -28,6 +28,17 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* e) override;
+    // Phase 13: intercept WindowStateChange so a WM-driven maximize (the
+    // typical response to a native title-bar double-click) is redirected
+    // into WindowFullScreen. The actual decision logic lives in
+    // app/TitleBarFullscreen.h so it can be unit-tested without spinning
+    // up the full MainWindow + QWebEngineView stack.
+    void changeEvent(QEvent* e) override;
+    // Phase 13: Esc exits fullscreen. Standard Qt convention (matches
+    // VLC, browsers, most media apps). Conflicts with Ctrl+F? No — Esc
+    // reaches MainWindow only when no child widget has captured it; the
+    // FindBar's own Esc shortcut handles itself first when visible.
+    void keyPressEvent(QKeyEvent* e) override;
 
     // Drag-and-drop: accept external Markdown files dropped from a file
     // manager. Filtering lives in src/app/DropHandler.h so it's unit

@@ -21,6 +21,7 @@ set(UNIT_TESTS
     DropHandlerTest
     EditorPaletteTest
     FindBarTest
+    TitleBarFullscreenTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
