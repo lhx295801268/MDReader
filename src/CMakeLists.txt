@@ -20,6 +20,7 @@ qt_add_executable(mdreader
     ui/OutlineView.h ui/OutlineView.cpp
     ui/DocumentTab.h ui/DocumentTab.cpp
     ui/ThemeMenu.h ui/ThemeMenu.cpp
+    ui/FindBar.h ui/FindBar.cpp
 )
 
 qt_add_resources(mdreader "mdreader_resources"

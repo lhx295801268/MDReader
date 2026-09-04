@@ -23,7 +23,8 @@ set(INTEGRATION_TESTS
 # Per-test extra implementation sources (the foreach only globs the test's
 # own .cpp; any library code a test exercises must be listed here).
 set(TEST_EXTRA_SOURCES_HtmlExportTest
-    ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp)
+    ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/LoadingOverlay.cpp)
 
 # Task 27: EditToPreviewTest exercises the full UI stack (EditorView,
 # DocumentTab, PreviewView, OutlineView, InfoView) plus the render pipeline
@@ -31,6 +32,7 @@ set(TEST_EXTRA_SOURCES_HtmlExportTest
 # Document, and ImageHandler (EditorView::insertFromMimeData uses it).
 set(TEST_EXTRA_SOURCES_EditToPreviewTest
     ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/LoadingOverlay.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/DocumentTab.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/EditorView.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/OutlineView.cpp
@@ -51,6 +53,7 @@ set(TEST_EXTRA_LIBS_EditToPreviewTest
 # smoke-test screenshots under offscreen QPA.
 set(TEST_EXTRA_SOURCES_grab_screenshots
     ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/LoadingOverlay.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/DocumentTab.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/EditorView.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/OutlineView.cpp
@@ -108,6 +111,7 @@ set(TEST_EXTRA_SOURCES_RenderCoordinatorWorkerTest
     ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/DocumentTab.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/LoadingOverlay.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/EditorView.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/OutlineView.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/InfoView.cpp

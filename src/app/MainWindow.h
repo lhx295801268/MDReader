@@ -15,6 +15,7 @@ class DocumentManager;
 class DocumentTab;
 class RenderCoordinator;
 class ThemeMenu;
+class FindBar;
 class AppTranslator;
 class QAction;
 namespace Qt { enum class ColorScheme; }
@@ -85,6 +86,12 @@ private:
     // follow-system mode.
     void rerenderAllTabs(const QString& effectiveTheme);
 
+    // Phase 12: paint every editor in every tab with the palette matching
+    // `theme_`. Called when the user picks a new theme, when the OS color
+    // scheme flips while in follow-system mode, and on construction so a
+    // freshly-opened editor starts with the right colors.
+    void applyEditorTheme();
+
     // Phase 10: refresh every toolbar action's text after the user
     // switches language. Qt's automatic LanguageChange handling covers
     // QPushButton / QLabel etc., but QAction's text() doesn't get re-run
@@ -134,6 +141,11 @@ private:
     QAction* langEnAct_ = nullptr;
     QAction* langZhAct_ = nullptr;
     ThemeMenu* themeMenu_ = nullptr;
+    // Phase 12: docked Ctrl+F find bar. Hidden until the user invokes
+    // Ctrl+F, then shown above the central area. Its visible state is
+    // driven entirely from the Ctrl+F handler — no action exposed in the
+    // toolbar to keep the chrome uncluttered.
+    FindBar* findBar_ = nullptr;
     // Phase 10: in-app English/Chinese translator. Owned by QApplication
     // (we install it via QApplication::installTranslator in the ctor);
     // MainWindow holds a raw pointer to call setLanguage() /

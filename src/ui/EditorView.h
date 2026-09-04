@@ -1,6 +1,7 @@
 #pragma once
 #include <QPlainTextEdit>
 #include "documents/Document.h"
+#include "app/EditorPalette.h"
 
 class EditorView : public QPlainTextEdit {
     Q_OBJECT
@@ -11,6 +12,14 @@ public:
 
     void setShowLineNumbers(bool on);
     bool showLineNumbers() const { return showLineNumbers_; }
+
+    // Phase 12: switch the editor's background / foreground / gutter colors
+    // to match the active preview theme. Caller passes a resolved
+    // mdreader::theme::EditorPalette (header-only lookup in
+    // app/EditorPalette.h). Idempotent — applying the same palette twice
+    // is a no-op. The gutter (line-number strip) is repainted immediately
+    // so the color flip is visible without a resize or text change.
+    void applyEditorPalette(const mdreader::theme::EditorPalette& palette);
 
     // Bulk-replace editor text from disk (Phase 4 external-reload path).
     // Distinct from syncFromDocument(): the source string comes from the
@@ -41,4 +50,11 @@ private:
     std::shared_ptr<Document> doc_;
     bool showLineNumbers_ = true;
     bool loadingFromDoc_ = false;
+    // Phase 12: cached line-number paint colors so paintLineNumbers() can
+    // pick them up at draw time without re-asking the palette. Updated by
+    // applyEditorPalette(); defaults match the github light theme so a
+    // constructor-time paint (before any theme has been applied) is still
+    // legible.
+    QColor lineNumberBgCached_ = QColor(245, 245, 245);
+    QColor lineNumberFgCached_ = QColor(150, 150, 150);
 };

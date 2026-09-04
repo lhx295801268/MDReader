@@ -1,6 +1,7 @@
 #include "app/MainWindow.h"
 #include "app/DropHandler.h"
 #include "app/ThemeResolution.h"
+#include "app/EditorPalette.h"
 #include "documents/Document.h"
 #include "documents/DocumentManager.h"
 #include "ui/DocumentTab.h"
@@ -9,6 +10,7 @@
 #include "ui/OutlineView.h"
 #include "ui/InfoView.h"
 #include "ui/ThemeMenu.h"
+#include "ui/FindBar.h"
 #include "services/RenderCoordinator.h"
 #include "services/WordCounter.h"
 #include "services/OutlineExtractor.h"
@@ -38,6 +40,8 @@
 #include <QStatusBar>
 #include <QStyleHints>
 #include <QGuiApplication>
+#include <QShortcut>
+#include <QKeySequence>
 #include "services/FileWatcher.h"
 
 namespace {
@@ -148,6 +152,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         // Outline click → editor cursor + preview scroll;
         // editor cursor → outline highlight.
         self->wireTabSync(tab);
+        // Phase 12: paint the new editor with the active theme palette so
+        // it matches the right-hand preview from the moment the tab
+        // appears, rather than after the user touches the theme menu.
+        tab->editor()->applyEditorPalette(
+            mdreader::theme::paletteForTheme(self->theme_));
         self->tabs_->addTab(tab, QFileInfo(doc->path()).fileName());
         // Phase 4: start watching the file so we can react when something
         // else rewrites it on disk. Skip empty paths (newDocument path —
@@ -222,6 +231,9 @@ void MainWindow::buildUi() {
         }
         theme_ = resolveEffectiveTheme();
         rerenderAllTabs(theme_);
+        // Phase 12: also repaint every editor so the left pane tracks the
+        // theme flip, not just the right pane.
+        applyEditorTheme();
     });
 
     tb->addSeparator();
@@ -323,6 +335,50 @@ void MainWindow::buildUi() {
     connect(infoAct_, &QAction::toggled, this, &MainWindow::toggleInfo);
 
     connect(tabs_, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
+
+    // Phase 12: dock the in-editor find bar above the central widget so
+    // it sits visually between the toolbar and the editor. We use a
+    // dedicated QToolBar rather than addWidget() to the existing main
+    // toolbar because the main toolbar already has its own dbl-click
+    // fullscreen event filter and we don't want the find bar to inherit
+    // that quirk. The find toolbar itself is non-movable / non-floatable
+    // so it can't be accidentally dragged away.
+    auto* findToolBar = addToolBar("Find");
+    findToolBar->setMovable(false);
+    findToolBar->setFloatable(false);
+    findToolBar->setIconSize(QSize(16, 16));
+    findBar_ = new FindBar(findToolBar);
+    findToolBar->addWidget(findBar_);
+    findToolBar->hide();  // shown on Ctrl+F
+
+    // Ctrl+F opens the find bar (or refocuses its input if already open).
+    // We use QShortcut with WindowShortcut context so it fires regardless
+    // of which child widget currently has focus, mirroring the behavior
+    // of every other editor (VS Code, Sublime, browsers, …).
+    auto* findShortcut = new QShortcut(QKeySequence::Find, this);
+    findShortcut->setContext(Qt::WindowShortcut);
+    connect(findShortcut, &QShortcut::activated, this, [this] {
+        auto* tab = currentTab();
+        if (!tab) return;
+        auto* editor = tab->editor();
+        if (!editor) return;
+        // If the bar is already open, the user almost certainly means
+        // "focus the search input so I can type" — re-show and select
+        // all rather than dismissing + reopening (which would lose the
+        // existing query).
+        if (findBar_ && findBar_->isVisibleBar()) {
+            findBar_->showFor(editor);
+            return;
+        }
+        findBar_->showFor(editor);
+    });
+    connect(findBar_, &FindBar::findBarClosed, this, [this] {
+        // Move focus back to the current tab's editor; otherwise the
+        // user is stranded on the now-hidden bar with no caret.
+        if (auto* tab = currentTab()) {
+            if (auto* editor = tab->editor()) editor->setFocus();
+        }
+    });
 }
 
 void MainWindow::newDocument() {
@@ -330,6 +386,11 @@ void MainWindow::newDocument() {
     auto* tab = new DocumentTab(doc);
     rc_->bind(doc->path(), tab->preview(), tab);
     wireTabSync(tab);
+    // Phase 12: paint the freshly-created editor with the active theme
+    // so it doesn't flash white-on-default before the user touches the
+    // theme menu.
+    if (tab->editor()) tab->editor()->applyEditorPalette(
+        mdreader::theme::paletteForTheme(theme_));
     tabs_->addTab(tab, "Untitled");
 }
 
@@ -458,6 +519,15 @@ void MainWindow::onTabChanged(int) {
     if (!tab) return;
     tab->outline()->setVisible(outlineVisible_);
     tab->info()->setVisible(infoVisible_);
+    // Phase 12: when the user switches tabs while the find bar is open,
+    // close it. The bar was bound to the previous editor's cursor /
+    // selection; showing it now would search stale text and almost
+    // certainly surprise the user. They'll press Ctrl+F again on the new
+    // tab and get a fresh search seeded from the new selection.
+    if (findBar_ && findBar_->isVisibleBar()) {
+        findBar_->hide();
+        emit findBar_->findBarClosed();
+    }
 }
 
 DocumentTab* MainWindow::currentTab() const {
@@ -641,6 +711,19 @@ void MainWindow::onSystemColorSchemeChanged(Qt::ColorScheme /*scheme*/) {
     if (themeMode_ != kModeAuto) return;
     theme_ = resolveEffectiveTheme();
     rerenderAllTabs(theme_);
+    // Phase 12: editor follows the OS flip too.
+    applyEditorTheme();
+}
+
+void MainWindow::applyEditorTheme() {
+    const auto palette = mdreader::theme::paletteForTheme(theme_);
+    for (int i = 0; i < tabs_->count(); ++i) {
+        auto* tab = qobject_cast<DocumentTab*>(tabs_->widget(i));
+        if (!tab) continue;
+        if (auto* editor = tab->editor()) {
+            editor->applyEditorPalette(palette);
+        }
+    }
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* e) {

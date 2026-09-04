@@ -19,6 +19,8 @@ set(UNIT_TESTS
     ThemeMenuTest
     MainWindowThemeTest
     DropHandlerTest
+    EditorPaletteTest
+    FindBarTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -46,6 +48,7 @@ set(TEST_EXTRA_SOURCES_RenderFrameDropTest
     ${CMAKE_SOURCE_DIR}/src/services/ImageHandler.cpp
     ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/LoadingOverlay.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/DocumentTab.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/EditorView.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/OutlineView.cpp
@@ -78,6 +81,16 @@ set(TEST_EXTRA_LIBS_ThemeMenuTest Qt6::Widgets)
 # DropHandler is header-only; no extra sources. Test uses QtTest + QMimeData
 # (already in Qt6::Core via QObject linkage).
 set(TEST_EXTRA_LIBS_DropHandlerTest Qt6::Widgets)
+# FindBar lives under src/ui/ and embeds QLineEdit/QLabel/QToolButton, so
+# it needs Qt6::Widgets to link. FindBar.cpp itself is bundled into the
+# test below (TEST_EXTRA_SOURCES_FindBarTest).
+set(TEST_EXTRA_SOURCES_FindBarTest
+    ${CMAKE_SOURCE_DIR}/src/ui/FindBar.cpp)
+set(TEST_EXTRA_LIBS_FindBarTest Qt6::Widgets)
+# EditorPalette is header-only but uses QColor (QtGui), not just QObject.
+# The header-only function table lives in src/app/, but QColor's API is in
+# QtGui — without Qt6::Gui in the include path the test won't compile.
+set(TEST_EXTRA_LIBS_EditorPaletteTest Qt6::Gui)
 
 foreach(test_name ${UNIT_TESTS})
     qt_add_executable(${test_name} ${test_name}.cpp ${TEST_EXTRA_SOURCES_${test_name}})
