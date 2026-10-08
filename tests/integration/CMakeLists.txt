@@ -17,6 +17,7 @@ set(INTEGRATION_TESTS
     ThemeSwitchTest
     ExternalReloadTest
     RenderCoordinatorWorkerTest
+    MermaidRenderTest
     grab_screenshots
 )
 
@@ -128,6 +129,17 @@ set(TEST_EXTRA_SOURCES_RenderCoordinatorWorkerTest
 set(TEST_EXTRA_LIBS_RenderCoordinatorWorkerTest
     Qt6::Concurrent)
 
+# MermaidRenderTest drives the real preview page: PreviewView + its overlay,
+# and MarkdownRenderer to build the page under test (which pulls
+# OutlineExtractor for the heading-id pass).
+set(TEST_EXTRA_SOURCES_MermaidRenderTest
+    ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/LoadingOverlay.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
+
+set(TEST_EXTRA_LIBS_MermaidRenderTest Qt6::WebEngineWidgets)
+
 # cmark-gfm-extensions references cmark-gfm symbols (e.g. cmark_arena_push),
 # so extensions must precede cmark-gfm_static on the link line. This matches
 # src/CMakeLists.txt. Unused by HtmlExportTest but cheap to keep here.
@@ -147,6 +159,8 @@ set(_INTEGRATION_RESOURCE_FILES
     ${CMAKE_SOURCE_DIR}/src/resources/themes/one-dark.css
     ${CMAKE_SOURCE_DIR}/src/resources/vendor/highlight/highlight.min.js
     ${CMAKE_SOURCE_DIR}/src/resources/vendor/mathjax/tex-mml-chtml.js
+    ${CMAKE_SOURCE_DIR}/src/resources/vendor/mermaid/mermaid.min.js
+    ${CMAKE_SOURCE_DIR}/src/resources/vendor/mermaid/mermaid-init.js
 )
 
 foreach(test_name ${INTEGRATION_TESTS})
@@ -170,7 +184,7 @@ endforeach()
 
 # Integration tests use QtWebEngineWidgets, which needs a GUI platform.
 # Use offscreen in headless CI environments (libxcb-cursor0 is missing here).
-set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest integration_ExternalReloadTest integration_RenderCoordinatorWorkerTest PROPERTIES
+set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest integration_ExternalReloadTest integration_RenderCoordinatorWorkerTest integration_MermaidRenderTest PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # integration_grab_screenshots is a manual helper, not a CI test: QWebEngineView

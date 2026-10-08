@@ -1,4 +1,5 @@
 #include "services/MarkdownRenderer.h"
+#include "services/MermaidTheme.h"
 #include "services/OutlineExtractor.h"
 #include <cmark-gfm.h>
 #include <cmark-gfm-core-extensions.h>
@@ -96,20 +97,57 @@ QString MarkdownRenderer::wrapHtml(const QString& bodyHtml, const QString& theme
     else processed += bodyHtml.mid(last);
 
     const QString themeCss = loadQrcOrEmpty(QStringLiteral(":/themes/%1.css").arg(themeName));
-    return QStringLiteral(
-        "<!doctype html><html><head>"
-        "<meta charset='utf-8'>"
-        "<style>%1</style>"
-        "<script src='qrc:/vendor/highlight/highlight.min.js'></script>"
-        "<script src='qrc:/vendor/mathjax/tex-mml-chtml.js'></script>"
-        "<script>"
-        "window.addEventListener('DOMContentLoaded', function() {"
-        "  if (window.MathJax) { MathJax.typesetPromise().catch(err => console.error(err)); }"
-        "  else { document.body.insertAdjacentHTML('beforeend',"
-        "    '<div style=\"position:fixed;top:0;left:0;right:0;background:#fdf6c4;color:#000;padding:6px;text-align:center;font:12px sans-serif;\">MathJax unavailable, math not rendered</div>'); }"
-        "  if (window.hljs) hljs.highlightAll();"
-        "});"
-        "</script>"
-        "</head><body>%2</body></html>"
-    ).arg(themeCss, processed);
+
+    // Mermaid is a 3.5 MB bundle. Live-render mode reloads the whole page on
+    // every debounced keystroke, so loading it unconditionally would make
+    // every edit in a diagram-free document pay that parse cost for nothing.
+    //
+    // Case-insensitive: cmark passes the fence info string through verbatim,
+    // so ```Mermaid yields class="language-Mermaid". A case-sensitive probe
+    // would skip the injection and leave the diagram silently unrendered,
+    // which is worse than the wasted parse this check exists to avoid.
+    const bool hasMermaid = processed.contains(QLatin1String("language-mermaid"),
+                                               Qt::CaseInsensitive);
+
+    // Deliberate order:
+    //   convert() -> MathJax -> hljs -> render()
+    // convert() swaps the mermaid fences out of the DOM before highlight.js
+    // can mis-highlight diagram source. Mermaid runs last AND is chained on
+    // the MathJax promise rather than merely written after it: MathJax's
+    // default inline math is $$...$$, so a diagram whose labels contain a
+    // dollar-delimited span could otherwise be typeset in place while
+    // mermaid is still reading that element's text as its source.
+    static const char kBootstrapJs[] = R"JS(
+window.addEventListener('DOMContentLoaded', function () {
+  var diagrams = window.MDReaderMermaid;
+  if (diagrams) diagrams.convert();
+  var mathDone;
+  if (window.MathJax && MathJax.typesetPromise) {
+    mathDone = MathJax.typesetPromise().catch(function (e) { console.error(e); });
+  } else {
+    document.body.insertAdjacentHTML('beforeend',
+      '<div style="position:fixed;top:0;left:0;right:0;background:#fdf6c4;color:#000;padding:6px;text-align:center;font:12px sans-serif;">MathJax unavailable, math not rendered</div>');
+    mathDone = Promise.resolve();
+  }
+  if (window.hljs) hljs.highlightAll();
+  if (diagrams) mathDone.then(function () { diagrams.render(); });
+});
+)JS";
+
+    QString page;
+    page += QStringLiteral("<!doctype html><html><head><meta charset='utf-8'>");
+    page += QStringLiteral("<style>") + themeCss + QStringLiteral("</style>");
+    page += QStringLiteral("<script src='qrc:/vendor/highlight/highlight.min.js'></script>");
+    page += QStringLiteral("<script src='qrc:/vendor/mathjax/tex-mml-chtml.js'></script>");
+    if (hasMermaid) {
+        page += QStringLiteral("<script src='qrc:/vendor/mermaid/mermaid.min.js'></script>");
+        page += QStringLiteral("<script src='qrc:/vendor/mermaid/mermaid-init.js'></script>");
+    }
+    page += QStringLiteral("<script>") + QLatin1String(kBootstrapJs) + QStringLiteral("</script>");
+    page += QStringLiteral("</head><body data-mermaid-theme='")
+          + mdreader::mermaid::mermaidThemeFor(themeName)
+          + QStringLiteral("'>");
+    page += processed;
+    page += QStringLiteral("</body></html>");
+    return page;
 }

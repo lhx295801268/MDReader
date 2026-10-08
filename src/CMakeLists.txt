@@ -36,6 +36,9 @@ qt_add_resources(mdreader "mdreader_resources"
         # --- vendored 3rd-party assets (see scripts/fetch_vendor.sh) ---
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/vendor/highlight/highlight.min.js"
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/vendor/mathjax/tex-mml-chtml.js"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/vendor/mermaid/mermaid.min.js"
+        # First-party glue, lives beside the bundle it drives.
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/vendor/mermaid/mermaid-init.js"
 )
 
 target_link_libraries(mdreader PRIVATE

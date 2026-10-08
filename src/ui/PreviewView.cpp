@@ -1,4 +1,5 @@
 #include "ui/PreviewView.h"
+#include "services/HtmlInliner.h"
 #include "ui/LoadingOverlay.h"
 #include <QFile>
 #include <QPageLayout>
@@ -57,7 +58,9 @@ void PreviewView::exportHtml(const QString& filePath, const QString& currentHtml
                  qUtf8Printable(filePath), qUtf8Printable(f.errorString()));
         return;
     }
-    f.write(currentHtml.toUtf8());
+    // qrc: URLs only resolve inside the app, so the live page's script tags
+    // have to be inlined for the exported file to stand on its own.
+    f.write(mdreader::html::inlineQrcScripts(currentHtml).toUtf8());
 }
 
 void PreviewView::exportPdf(const QString& filePath) {

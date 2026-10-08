@@ -27,6 +27,7 @@
 - 实时预览(250 ms 去抖),支持手动模式
 - 6 套主题(GitHub / GitHub Dark / Dracula / Solarized / One Dark)
 - 数学公式(MathJax)、代码高亮(highlight.js)
+- Mermaid 图表(流程图 / 思维导图 / 架构图),点击可全屏放大、拖动平移、滚轮缩放
 - 粘贴图片自动写入 `<doc>.assets/`
 - 多 Tab + 会话恢复
 - 文件被外部改动自动检测,冲突时弹三按钮 modal
@@ -71,9 +72,10 @@ MDReader 使用(并感谢)以下开源项目:
 | [cmark-gfm](https://github.com/github/cmark-gfm) | 0.29.0.gfm.13 | [BSD 2-Clause](https://github.com/github/cmark-gfm/blob/master/COPYING) | GitHub Flavored Markdown 解析 |
 | [highlight.js](https://highlightjs.org/) | 11.9.0 | [BSD 3-Clause](https://github.com/highlightjs/highlight.js/blob/main/LICENSE) | 代码块语法高亮( vendored 在 `src/resources/vendor/highlight/`) |
 | [MathJax](https://www.mathjax.org/) | 3 | [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) | 数学公式渲染( vendored 在 `src/resources/vendor/mathjax/`) |
+| [Mermaid](https://mermaid.js.org/) | 11.17.2 | [MIT](https://github.com/mermaid-js/mermaid/blob/develop/LICENSE) | 流程图 / 思维导图 / 架构图渲染( vendored 在 `src/resources/vendor/mermaid/`) |
 
-`.deb` 与 `.exe` 安装器均通过**动态链接** Qt,不修改 Qt 源码,因此 LGPL v3 兼容性条款得到满足;highlight.js 与 MathJax 以原始源码形式 vendored,许可文本保留在各文件中。
+`.deb` 与 `.exe` 安装器均通过**动态链接** Qt,不修改 Qt 源码,因此 LGPL v3 兼容性条款得到满足;highlight.js、MathJax 与 Mermaid 以原始源码形式 vendored,许可文本保留在各文件中。
 
 ## 许可证
 
-本项目以 [MIT 协议](LICENSE)开源。`Qt`(`LGPL v3`)、`cmark-gfm`(`BSD 2-Clause`)、`highlight.js`(`BSD 3-Clause`)、`MathJax`(`Apache 2.0`)各自的协议文本分别随其原始代码分发,详见上方"第三方依赖与开源声明"。
+本项目以 [MIT 协议](LICENSE)开源。`Qt`(`LGPL v3`)、`cmark-gfm`(`BSD 2-Clause`)、`highlight.js`(`BSD 3-Clause`)、`MathJax`(`Apache 2.0`)、`Mermaid`(`MIT`)各自的协议文本分别随其原始代码分发,详见上方"第三方依赖与开源声明"。

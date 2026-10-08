@@ -22,6 +22,9 @@ set(UNIT_TESTS
     EditorPaletteTest
     FindBarTest
     TitleBarFullscreenTest
+    MermaidThemeTest
+    MermaidInjectionTest
+    HtmlInlinerTest
 )
 
 # Per-test extra implementation sources (the foreach only globs the test's
@@ -92,6 +95,20 @@ set(TEST_EXTRA_LIBS_FindBarTest Qt6::Widgets)
 # The header-only function table lives in src/app/, but QColor's API is in
 # QtGui — without Qt6::Gui in the include path the test won't compile.
 set(TEST_EXTRA_LIBS_EditorPaletteTest Qt6::Gui)
+
+# MermaidInjectionTest asserts on what wrapHtml() puts in the page, so it
+# needs the renderer itself (plus OutlineExtractor for the heading-id pass
+# that builds the body it inspects).
+set(TEST_EXTRA_SOURCES_MermaidInjectionTest
+    ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
+set(TEST_EXTRA_LIBS_MermaidInjectionTest libcmark-gfm-extensions_static)
+
+# MermaidTheme.h and HtmlInliner.h are header-only over QString/QFile — the
+# default Qt6::Core linkage is enough. Both are listed here for symmetry so a
+# future change that pulls in QtGui/QtWidgets has an obvious place to land.
+set(TEST_EXTRA_LIBS_MermaidThemeTest Qt6::Core)
+set(TEST_EXTRA_LIBS_HtmlInlinerTest Qt6::Core)
 
 foreach(test_name ${UNIT_TESTS})
     qt_add_executable(${test_name} ${test_name}.cpp ${TEST_EXTRA_SOURCES_${test_name}})
