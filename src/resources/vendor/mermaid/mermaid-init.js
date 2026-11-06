@@ -13,27 +13,25 @@
  *     order. convert() must run before hljs so highlight.js never sees the
  *     diagram source, and render() runs last so MathJax never walks into a
  *     freshly-inserted SVG.
+ *   - The zoom/pan overlay lives in viewer-overlay.js (window.MDReaderViewer),
+ *     which is injected on EVERY page — a document may have no diagram at all
+ *     and still have a large screenshot that needs zooming. This file only
+ *     hands the rendered SVG to that shared viewer.
  *
  * Everything is idempotent: calling convert()/render() twice is a no-op.
  */
 (function () {
   'use strict';
 
-  var MIN_SCALE = 0.1;
-  var MAX_SCALE = 8;
-  var WHEEL_ZOOM_RATE = 0.0015;
-  var ZOOM_HINT = '拖动平移 · 滚轮缩放 · 双击适应窗口 · Esc 关闭';
-
   // ---------------------------------------------------------------- styles
 
   // Injected rather than added to the six theme CSS files: the rules are
   // Mermaid-specific and theme-independent except for the error block, which
-  // keys off body[data-mermaid-theme].
+  // keys off body[data-mermaid-theme]. The zoom/pan overlay's own styles live
+  // in viewer-overlay.js so they are present on diagram-free pages too.
   var CSS = [
     '.mdr-mermaid { margin: 20px 0; text-align: center; }',
     '.mdr-mermaid.is-rendered { cursor: zoom-in; }',
-    '.mdr-diagram-svg { max-width: 100%; height: auto; }',
-    '.mdr-diagram-svg:focus { outline: 2px solid #58a6ff; outline-offset: 4px; }',
     '.mdr-mermaid-error { text-align: left; border: 1px solid #f0c0c0;',
     '  background: #fff5f5; border-radius: 6px; padding: 12px 14px;',
     '  font: 13px/1.5 SFMono-Regular, Menlo, Consolas, monospace; }',
@@ -49,20 +47,6 @@
     'body[data-mermaid-theme="dark"] .mdr-mermaid-error-msg { color: #ff9c9c; }',
     'body[data-mermaid-theme="dark"] .mdr-mermaid-error-src {',
     '  background: rgba(110,118,129,.25); }',
-    '.mdr-diagram-overlay { position: fixed; inset: 0; z-index: 2147483000;',
-    '  display: none; background: rgba(0,0,0,.72); overflow: hidden; }',
-    '.mdr-diagram-overlay.is-open { display: block; }',
-    '.mdr-diagram-overlay.is-dragging { cursor: grabbing; }',
-    '.mdr-ov-stage { position: absolute; left: 0; top: 0;',
-    '  transform-origin: 0 0; will-change: transform; }',
-    '.mdr-ov-stage > svg { display: block; }',
-    '.mdr-ov-hint { position: absolute; left: 50%; bottom: 18px;',
-    '  transform: translateX(-50%); padding: 6px 14px; border-radius: 999px;',
-    '  background: rgba(0,0,0,.6); color: #e6e6e6; pointer-events: none;',
-    '  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
-    '  white-space: nowrap; }',
-    'html.mdr-ov-lock, html.mdr-ov-lock body { overflow: hidden; }',
-    '@media print { .mdr-diagram-overlay { display: none !important; } }',
   ].join('\n');
 
   function injectStyle() {
@@ -166,16 +150,25 @@
     host.appendChild(box);
   }
 
+  // Hand the finished diagram to the shared zoom/pan viewer. Clicking the
+  // diagram (or pressing Enter on it) opens a full-screen overlay where the
+  // user can scale it up and pan around — a 30-node flowchart squeezed into
+  // the column is unreadable at 1:1.
   function decorate(svg) {
     svg.classList.add('mdr-diagram-svg');
     svg.setAttribute('role', 'button');
     svg.setAttribute('tabindex', '0');
-    svg.setAttribute('title', '点击放大');
-    svg.addEventListener('click', function () { openOverlay(svg); });
+    svg.setAttribute('title', '点击放大查看');
+    if (!window.MDReaderViewer) return;
+    svg.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.MDReaderViewer.openElement(svg);
+    });
     svg.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        openOverlay(svg);
+        window.MDReaderViewer.openElement(svg);
       }
     });
   }
@@ -257,177 +250,15 @@
     document.body.appendChild(banner);
   }
 
-  // --------------------------------------------------------------- overlay
-
-  var overlay = null;
-  var stage = null;
-  var view = { scale: 1, tx: 0, ty: 0 };
-  var openSvg = null;
-  var openSize = { w: 800, h: 600 };
-  var drag = null;
-  var dragged = false;
-
-  function naturalSize(svg) {
-    var vb = svg.getAttribute('viewBox');
-    if (vb) {
-      var parts = vb.split(/[\s,]+/).map(Number);
-      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-        return { w: parts[2], h: parts[3] };
-      }
-    }
-    var rect = svg.getBoundingClientRect();
-    return { w: rect.width || 800, h: rect.height || 600 };
-  }
-
-  function applyView() {
-    stage.style.transform =
-      'translate(' + view.tx + 'px,' + view.ty + 'px) scale(' + view.scale + ')';
-  }
-
-  // Fit the whole diagram in the window, never magnifying past 1:1 — an
-  // upscaled diagram is blurry and no easier to read.
-  function fit() {
-    if (!openSvg) return;
-    var margin = 48;
-    var vw = window.innerWidth;
-    var vh = window.innerHeight;
-    var scale = Math.min((vw - margin * 2) / openSize.w,
-                         (vh - margin * 2) / openSize.h, 1);
-    view.scale = Math.max(MIN_SCALE, scale);
-    view.tx = (vw - openSize.w * view.scale) / 2;
-    view.ty = (vh - openSize.h * view.scale) / 2;
-    applyView();
-  }
-
-  function ensureOverlay() {
-    if (overlay) return;
-    overlay = document.createElement('div');
-    overlay.className = 'mdr-diagram-overlay';
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'true');
-
-    stage = document.createElement('div');
-    stage.className = 'mdr-ov-stage';
-
-    var hint = document.createElement('div');
-    hint.className = 'mdr-ov-hint';
-    hint.textContent = ZOOM_HINT;
-
-    overlay.appendChild(stage);
-    overlay.appendChild(hint);
-    document.body.appendChild(overlay);
-
-    overlay.addEventListener('mousedown', onDragStart);
-    overlay.addEventListener('wheel', onWheel, { passive: false });
-    overlay.addEventListener('dblclick', function (e) { e.preventDefault(); fit(); });
-    overlay.addEventListener('click', function (e) {
-      // A drag ends with a click event too; only a clean click closes.
-      if (e.target === overlay && !dragged) closeOverlay();
-    });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && isOpen()) {
-        e.preventDefault();
-        e.stopPropagation();
-        closeOverlay();
-      }
-    });
-    window.addEventListener('resize', function () { if (isOpen()) fit(); });
-  }
-
-  function isOpen() {
-    return !!overlay && overlay.classList.contains('is-open');
-  }
-
-  function openOverlay(sourceSvg) {
-    ensureOverlay();
-    openSize = naturalSize(sourceSvg);
-
-    var clone = sourceSvg.cloneNode(true);
-    clone.removeAttribute('style');
-    // Mermaid stamps the render id onto the root <svg>. Keeping it on the
-    // clone would put two elements with that id in the document for as long as
-    // the overlay is open, and getElementById() would return the one sitting
-    // behind the overlay. The clone's internal <defs> ids are still duplicated
-    // — harmless because they are identical, but it is why marker references
-    // keep resolving while the overlay is up.
-    clone.removeAttribute('id');
-    clone.setAttribute('width', openSize.w);
-    clone.setAttribute('height', openSize.h);
-    // The diagram keeps the background it was designed against — a light
-    // diagram on the dark backdrop would otherwise be invisible text.
-    var bodyBg = getComputedStyle(document.body).backgroundColor;
-    clone.style.maxWidth = 'none';
-    clone.style.display = 'block';
-    clone.style.background = bodyBg && bodyBg !== 'rgba(0, 0, 0, 0)' ? bodyBg : '#ffffff';
-
-    while (stage.firstChild) stage.removeChild(stage.firstChild);
-    stage.appendChild(clone);
-    openSvg = clone;
-
-    overlay.classList.add('is-open');
-    document.documentElement.classList.add('mdr-ov-lock');
-    fit();
-  }
-
-  function closeOverlay() {
-    if (!overlay) return;
-    overlay.classList.remove('is-open', 'is-dragging');
-    document.documentElement.classList.remove('mdr-ov-lock');
-    while (stage.firstChild) stage.removeChild(stage.firstChild);
-    openSvg = null;
-    drag = null;
-  }
-
-  function onWheel(e) {
-    if (!openSvg) return;
-    e.preventDefault();
-    var next = Math.min(MAX_SCALE,
-                        Math.max(MIN_SCALE, view.scale * Math.exp(-e.deltaY * WHEEL_ZOOM_RATE)));
-    // Keep the point under the cursor pinned while zooming.
-    var rect = overlay.getBoundingClientRect();
-    var cx = e.clientX - rect.left;
-    var cy = e.clientY - rect.top;
-    var ratio = next / view.scale;
-    view.tx = cx - (cx - view.tx) * ratio;
-    view.ty = cy - (cy - view.ty) * ratio;
-    view.scale = next;
-    applyView();
-  }
-
-  function onDragStart(e) {
-    if (!openSvg || e.button !== 0) return;
-    e.preventDefault();
-    drag = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
-    dragged = false;
-    overlay.classList.add('is-dragging');
-    window.addEventListener('mousemove', onDragMove);
-    window.addEventListener('mouseup', onDragEnd);
-  }
-
-  function onDragMove(e) {
-    if (!drag) return;
-    var dx = e.clientX - drag.x;
-    var dy = e.clientY - drag.y;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragged = true;
-    view.tx = drag.tx + dx;
-    view.ty = drag.ty + dy;
-    applyView();
-  }
-
-  function onDragEnd() {
-    drag = null;
-    if (overlay) overlay.classList.remove('is-dragging');
-    window.removeEventListener('mousemove', onDragMove);
-    window.removeEventListener('mouseup', onDragEnd);
-  }
-
   window.MDReaderMermaid = {
     convert: convert,
     render: render,
     // Exposed for the integration test: it drives the overlay without
-    // synthesising trusted mouse events.
-    _open: openOverlay,
-    _close: closeOverlay,
-    _isOpen: isOpen,
+    // synthesising trusted mouse events. The overlay itself now lives in
+    // viewer-overlay.js — these are thin aliases kept for compatibility with
+    // the existing test surface.
+    _open: function (svg) { return window.MDReaderViewer && window.MDReaderViewer.openElement(svg); },
+    _close: function () { return window.MDReaderViewer && window.MDReaderViewer.close(); },
+    _isOpen: function () { return !!(window.MDReaderViewer && window.MDReaderViewer.isOpen()); },
   };
 })();

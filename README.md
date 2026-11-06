@@ -13,6 +13,15 @@
 - **Windows 10 64-bit (1809+)** / **Windows 11**,或 **Windows Server 2019+**
 - NSIS 安装器由 Visual Studio 2022 + Qt 6.5 MSVC 2019 64-bit 构建
 
+### macOS
+- **macOS 11.0 (Big Sur) 或更高**;主要在 **macOS Sequoia 15.8.1** 上验证
+- Apple Silicon(arm64)或 Intel(x86_64)64 位
+- 发布的 `.dmg` 未做公证(notarization),首次打开需在「访达」里**右键 → 打开**,或在终端执行:
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/MDReader.app
+  ```
+  这是所有未签名应用的通用提示,不是应用本身的缺陷
+
 ### 通用
 - Qt 6.5 或更高(QWebEngineView 依赖 Chromium 内核)
 - 大约 200 MB 磁盘空间(Qt WebEngine 进程资源)
@@ -27,25 +36,32 @@
 - 实时预览(250 ms 去抖),支持手动模式
 - 6 套主题(GitHub / GitHub Dark / Dracula / Solarized / One Dark)
 - 数学公式(MathJax)、代码高亮(highlight.js)
-- Mermaid 图表(流程图 / 思维导图 / 架构图),点击可全屏放大、拖动平移、滚轮缩放
+- Mermaid 图表(流程图 / 思维导图 / 架构图)与图片支持**点击放大、滚轮缩放、拖动平移**,带可见工具栏(放大 / 缩小 / 适应窗口 / 1:1 / 关闭)
 - 粘贴图片自动写入 `<doc>.assets/`
 - 多 Tab + 会话恢复
 - 文件被外部改动自动检测,冲突时弹三按钮 modal
 - 导出为 HTML / PDF
-- Linux `.deb` 与 Windows `.exe` 安装器
+- 菜单栏快捷键(`⌘N/O/S/W/Q`、`⌘F` 查找、`⌘R` 刷新、`⌃⌘F` 全屏);macOS 上自动使用系统菜单栏
+- Linux `.deb`、Windows `.exe` 与 macOS `.dmg` 安装包
 
 ## 安装
 
 ### Linux(Ubuntu 22.04+ / Debian 12+)
 
 ```bash
-sudo apt install ./MDReader-0.1.0-Linux.deb
+sudo apt install ./MDReader-0.2.0-Linux.deb
 mdreader your-notes.md
 ```
 
 ### Windows
 
-下载 `MDReader-0.1.0-win64.exe`,双击安装。
+下载 `MDReader-0.2.0-win64.exe`,双击安装。
+
+### macOS(Sequoia 15.x)
+
+下载 `MDReader-0.2.0-macOS.dmg`,打开后把 **MDReader.app** 拖进 **Applications** 即可。
+
+之后可以直接双击 `.md` 文件打开(Finder 的「打开方式」里已经注册了 MDReader);应用已在运行时再双击其它文件,会通过 `QFileOpenEvent` 交给已有实例打开。
 
 ## 从源码构建
 
@@ -56,6 +72,37 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ctest --test-dir build --output-on-failure   # 可选
 ./build/bin/mdreader your.md
+```
+
+### macOS
+
+需要 Qt 6.5+(**含 WebEngine 模块**)。用 [aqtinstall](https://github.com/miuruaqt/aqtinstall) 安装最省事:
+
+```bash
+python3 -m pip install aqtinstall
+python3 -m aqt install-qt mac desktop 6.5.3 clang_64 -m qtwebengine -O ~/Qt
+```
+
+然后:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$HOME/Qt/6.5.3/macos"
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+./build/bin/mdreader your.md
+```
+
+打 `.dmg` 包(`macdeployqt` 会在 install 阶段自动运行,把 Qt 框架拷进 `.app`):
+
+```bash
+cd build && cpack -G DragNDrop
+# → build/MDReader-0.2.0-macOS.dmg
+```
+
+产物位于 `build/MDReader.app`。图标可以用 CMake 目标从 PNG 重新生成(需要 macOS 自带的 `sips` / `iconutil`):
+
+```bash
+cmake --build build --target mdreader_regen_icon
 ```
 
 ## 截图存放

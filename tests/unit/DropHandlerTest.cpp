@@ -55,14 +55,23 @@ void DropHandlerTest::canAccept_accepts_any_local_file() {
 }
 
 void DropHandlerTest::extract_skips_remote_urls() {
+    // The local file has to really exist: extractLocalMarkdownPaths()
+    // skips paths that are not on disk (dangling symlinks, files that
+    // were deleted), so a non-existent path would be dropped for the
+    // wrong reason and the test would prove nothing.
+    const QString local = QDir::tempPath() + "/drop_remote_check.md";
+    {
+        QFile f(local); f.open(QIODevice::WriteOnly); f.write("# x"); f.close();
+    }
     auto* mime = new QMimeData;
     mime->setUrls({
         QUrl("https://example.com/readme.md"),
-        QUrl::fromLocalFile("/tmp/exists.md"),
+        QUrl::fromLocalFile(local),
     });
     QStringList paths = mdreader::drop::extractLocalMarkdownPaths(mime);
     QCOMPARE(paths.size(), 1);
-    QCOMPARE(paths.first(), QString("/tmp/exists.md"));
+    QCOMPARE(paths.first(), local);
+    QFile::remove(local);
     delete mime;
 }
 

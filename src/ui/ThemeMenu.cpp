@@ -17,14 +17,39 @@ ThemeMenu::ThemeMenu(QWidget* parent) : QMenu(parent) {
 
     addSeparator();
 
-    themes_ = {"github", "github-dark", "dracula",
-               "solarized-light", "solarized-dark", "one-dark"};
+    themes_ = entries();
+    themes_.removeFirst();  // drop the "auto" sentinel — it is above
     for (const auto& t : themes_) {
         auto* a = addAction(tr(t.toUtf8().constData()));
         a->setCheckable(true);
         a->setData(t);  // Phase 10: stash internal basename for retranslate
         grp->addAction(a);   // also makes it auto-exclusive
         connect(a, &QAction::triggered, this, [this, t] { emit themeSelected(t); });
+    }
+}
+
+QStringList ThemeMenu::entries() {
+    // Phase 14 (macOS): one source of truth for the selectable entries.
+    // The first entry is the "auto" sentinel ("Follow System"); the rest
+    // are concrete theme basenames.
+    return {"auto", "github", "github-dark", "dracula",
+            "solarized-light", "solarized-dark", "one-dark"};
+}
+
+void ThemeMenu::retranslate() {
+    // Phase 14 (macOS): QAction::setText() is not refreshed automatically
+    // when the translator is swapped, so re-run tr() for the title and
+    // every entry. The internal id stays in data() — that is what
+    // setCurrent() and the host compare against.
+    setTitle(tr("Theme"));
+    for (auto* a : actions()) {
+        if (a->isSeparator()) continue;
+        const QString id = a->data().toString();
+        if (id == QLatin1String(kAuto)) {
+            a->setText(tr("Follow System"));
+        } else if (!id.isEmpty()) {
+            a->setText(tr(id.toUtf8().constData()));
+        }
     }
 }
 

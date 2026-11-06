@@ -3,20 +3,22 @@
 #include <QStringList>
 #include <QDateTime>
 #include <QMessageBox>
+#include <QList>
 #include <memory>
 #include "services/FileWatcher.h"
+#include "services/AppTranslator.h"
 
 class QMimeData;
 class QDropEvent;
 class QDragEnterEvent;
 class QDragMoveEvent;
 class QTabWidget;
+class QPlainTextEdit;
 class DocumentManager;
 class DocumentTab;
 class RenderCoordinator;
 class ThemeMenu;
 class FindBar;
-class AppTranslator;
 class QAction;
 namespace Qt { enum class ColorScheme; }
 
@@ -39,6 +41,11 @@ protected:
     // reaches MainWindow only when no child widget has captured it; the
     // FindBar's own Esc shortcut handles itself first when visible.
     void keyPressEvent(QKeyEvent* e) override;
+    // Phase 14 (macOS): macOS hands "open this file" to a running app as a
+    // QFileOpenEvent rather than as a command-line argument — that is how
+    // double-clicking a .md in Finder reaches the app. Without this the
+    // file silently does nothing.
+    bool event(QEvent* e) override;
 
     // Drag-and-drop: accept external Markdown files dropped from a file
     // manager. Filtering lives in src/app/DropHandler.h so it's unit
@@ -110,6 +117,40 @@ private:
     // switcher's lambda.
     void retranslateToolbar();
 
+    // Phase 14 (macOS): build the menu bar. On macOS QMainWindow's menu
+    // bar becomes the system menu bar (the one at the top of the screen),
+    // which is what a macOS user expects: an application menu plus
+    // File / Edit / View / Window. On Linux and Windows the same menus
+    // are shown in an ordinary menu bar at the top of the window.
+    void buildMenuBar();
+
+    // Phase 14 (macOS): re-run tr() for every menu-bar string after the
+    // user switches language. QAction::text() is not refreshed by Qt's
+    // automatic LanguageChange handling, so we do it by hand — the same
+    // trick retranslateToolbar() uses for the toolbar.
+    void retranslateMenubar();
+
+    // Phase 14 (macOS): apply a theme chosen from the View ▸ Theme
+    // submenu (or the toolbar dropdown). Shared by both entry points so
+    // the two stay in sync.
+    void selectTheme(const QString& theme);
+
+    // Phase 14 (macOS): tick the entry matching the active theme in both
+    // the toolbar dropdown and the View ▸ Theme submenu.
+    void setThemeChecked();
+
+    // Phase 14 (macOS): switch the UI language and refresh every visible
+    // string (toolbar, menu bar, theme menu).
+    void applyLanguage(AppTranslator::Language lang);
+
+    // Phase 14 (macOS): close the tab at `idx` (the File ▸ Close Tab
+    // entry and the tab bar's close button share this).
+    void closeTabAt(int idx);
+
+    // Phase 14 (macOS): enable/disable the Edit menu entries depending on
+    // what currently has the keyboard focus.
+    void updateEditActions();
+
     DocumentTab* currentTab() const;
 
     // Phase 4: linear scan of tabs_ to find the DocumentTab whose editor is
@@ -140,6 +181,53 @@ private:
     QAction* liveAct_ = nullptr;
     QAction* manualAct_ = nullptr;
     QAction* refreshAct_ = nullptr;
+
+    // ------------------------------------------------------------------
+    // Phase 14 (macOS): the toolbar actions used to be locals inside
+    // buildUi(). They are members now so the menu bar can reuse *the same*
+    // QAction objects: one action, two places. A QAction may live in a
+    // toolbar and in a menu at the same time, and sharing it keeps the
+    // checked/enabled state and the shortcut in one place — no chance of
+    // the menu showing a stale "Refresh disabled" while the toolbar
+    // disagrees.
+    QAction* newAct_ = nullptr;
+    QAction* openAct_ = nullptr;
+    QAction* saveAct_ = nullptr;
+    QAction* pdfAct_ = nullptr;
+    QAction* htmlAct_ = nullptr;
+    QAction* themeBtn_ = nullptr;
+    QAction* langBtn_ = nullptr;
+
+    // Phase 14 (macOS): actions that only exist in the menu bar.
+    QAction* findAct_ = nullptr;
+    QAction* fullscreenAct_ = nullptr;
+    QAction* closeTabAct_ = nullptr;
+    QAction* quitAct_ = nullptr;
+    QAction* hideAct_ = nullptr;
+    QAction* hideOthersAct_ = nullptr;
+    QAction* showAllAct_ = nullptr;
+    QAction* aboutAct_ = nullptr;
+
+    // Phase 14 (macOS): the Edit menu's Undo…Select All entries. They
+    // forward to whichever widget holds the keyboard focus, so the same
+    // menu entry works in the Markdown editor and in the WebEngine
+    // preview. Kept as members so their enabled state can be refreshed
+    // whenever the focus moves (updateEditActions()).
+    QAction* undoAct_ = nullptr;
+    QAction* redoAct_ = nullptr;
+    QAction* cutAct_ = nullptr;
+    QAction* copyAct_ = nullptr;
+    QAction* pasteAct_ = nullptr;
+    QAction* selectAllAct_ = nullptr;
+
+    // Phase 14 (macOS): the View ▸ Theme and View ▸ Language submenus
+    // need their own QAction instances — a QMenu can only be plugged into
+    // one parent menu, so the toolbar dropdown and the menu-bar submenu
+    // cannot share the same actions without one of them losing them.
+    QList<QAction*> themeMenubarActions_;
+    QAction* langMenubarEnAct_ = nullptr;
+    QAction* langMenubarZhAct_ = nullptr;
+
     // Phase 10: every toolbar action lives on this list, so
     // retranslateToolbar() can call setText(tr(...)) on each one when the
     // user switches language. Without this list, the toolbar text would be

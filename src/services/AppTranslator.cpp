@@ -66,6 +66,34 @@ AppTranslator::AppTranslator(QObject* parent) : QTranslator(parent) {
         {"Next match (Enter)", "\xe4\xb8\x8b\xe4\xb8\x80\xe4\xb8\xaa\xe5\x8c\xb9\xe9\x85\x8d\xef\xbc\x88Enter\xef\xbc\x89"}, // 下一个匹配(Enter)
         {"Close (Esc)",   "\xe5\x85\xb3\xe9\x97\xad\xef\xbc\x88Esc\xef\xbc\x89"}, // 关闭(Esc)
         {"no match",      "\xe6\x97\xa0\xe5\x8c\xb9\xe9\x85\x8d"},  // 无匹配
+        // Phase 14 (macOS): menu bar. The menu titles and the entries that
+        // only exist there (the application menu, the Edit / View / Window
+        // menus) are translated here so switching language re-labels the
+        // whole system menu bar, not just the toolbar.
+        {"File",          "\xe6\x96\x87\xe4\xbb\xb6"},  // 文件
+        {"Edit",          "\xe7\xbc\x96\xe8\xbe\x91"},  // 编辑
+        {"View",          "\xe8\xa7\x86\xe5\x9b\xbe"},  // 视图
+        {"Window",        "\xe7\xaa\x97\xe5\x8f\xa3"},  // 窗口
+        {"About MDReader", "\xe5\x85\xb3\xe4\xba\x8e MDReader"},  // 关于 MDReader
+        {"Hide MDReader", "\xe9\x9a\x90\xe8\x97\x8f MDReader"},  // 隐藏 MDReader
+        {"Hide Others",   "\xe9\x9a\x90\xe8\x97\x8f\xe5\x85\xb6\xe4\xbb\x96"},  // 隐藏其他
+        {"Show All",      "\xe6\x98\xbe\xe7\xa4\xba\xe5\x85\xa8\xe9\x83\xa8"},  // 显示全部
+        {"Quit MDReader", "\xe9\x80\x80\xe5\x87\xba MDReader"},  // 退出 MDReader
+        {"Quit",          "\xe9\x80\x80\xe5\x87\xba"},  // 退出
+        {"Undo",          "\xe6\x8a\x92\xe9\x94\x80"},  // 撤销
+        {"Redo",          "\xe9\x87\x8d\xe5\x81\x9a"},  // 重做
+        {"Cut",           "\xe5\x89\xaa\xe5\x88\x87"},  // 剪切
+        {"Copy",          "\xe5\xa4\x8d\xe5\x88\xb6"},  // 复制
+        {"Paste",         "\xe7\xb2\x98\xe8\xb4\xb4"},  // 粘贴
+        {"Select All",    "\xe5\x85\xa8\xe9\x80\x89"},  // 全选
+        {"Find\xe2\x80\xa6", "\xe6\x89\xbe\xe6\x89\xbe\xe2\x80\xa6"},  // 查找…
+        {"Close Tab",     "\xe5\x85\xb3\xe9\x97\xad\xe6\xa0\x87\xe7\xad\xbe\xe9\xa1\xb5"},  // 关闭标签页
+        {"Full Screen",   "\xe5\x85\xa8\xe5\xb1\x8f"},  // 全屏
+        {"Minimize",      "\xe6\x9c\x80\xe5\xb0\x8f\xe5\x8c\x96"},  // 最小化
+        {"Bring All to Front", "\xe5\xb0\x86\xe5\x85\xa8\xe9\x83\xa8\xe7\xbd\xae\xe4\xba\x8e\xe5\x89\x8d\xe9\x9d\xa2"},  // 将全部置于前面
+        // About dialog body (macOS application menu).
+        {"MDReader %1\n\nA cross-platform Markdown reader and editor.\nBuilt with Qt %2 and cmark-gfm.",
+         "MDReader %1\n\n\xe8\xb7\xa8\xe5\xb9\xb3\xe5\x8f\xb0 Markdown \xe9\x98\x85\xe8\xaf\xbb\xe5\x99\xa8\xe4\xb8\x8e\xe7\xbc\x96\xe8\xbe\x91\xe5\x99\xa8\xe3\x80\x82\n\xe5\x9f\xba\xe4\xba\x8e Qt %2 \xe4\xb8\x8e cmark-gfm \xe6\x9e\x84\xe5\xbb\xba\xe3\x80\x82"},
     };
     for (const auto& e : table) {
         zhTable_.insert(QByteArray(e.en), QByteArray(e.zh));

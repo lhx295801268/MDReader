@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 # which CMake >= 4.0 rejects by default. Setting CMAKE_POLICY_VERSION_MINIMUM
 # to 3.5 downgrades the policy floor just enough to accept it.
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-project(MDReader VERSION 0.1.3 LANGUAGES C CXX)
+project(MDReader VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -73,11 +73,27 @@ if(UNIX AND NOT APPLE)
     include(cmake/LinuxDeb.cmake OPTIONAL)
 endif()
 
+# macOS: the app is built as a .app bundle (see src/CMakeLists.txt for the
+# MACOSX_BUNDLE properties) and packaged as a drag-and-drop .dmg. The
+# macdeployqt run lives in cmake/MacDmg.cmake.
+if(APPLE)
+    include(cmake/MacDmg.cmake)
+endif()
+
 set(CPACK_PACKAGE_NAME "MDReader")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_VENDOR "MDReader")
 set(CPACK_PACKAGE_CONTACT "MDReader <noreply@example.com>")
-set(CPACK_GENERATOR "DEB")
+# The generator depends on the platform. Note that MacDmg.cmake already
+# set CPACK_GENERATOR for macOS — that happens *before* this point, so the
+# value has to be chosen here, not set unconditionally further down.
+if(APPLE)
+    set(CPACK_GENERATOR "DragNDrop;TGZ")
+elseif(WIN32)
+    set(CPACK_GENERATOR "NSIS")
+else()
+    set(CPACK_GENERATOR "DEB")
+endif()
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 set(CPACK_DEBIAN_FILE_NAME "MDReader-${PROJECT_VERSION}-Linux.deb")
 # Phase 8: the deb ships a self-contained Qt 6.5.3 under
@@ -88,7 +104,6 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6core6, libqt6gui6, libqt6widgets6, libqt
 set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "Markdown reader/editor")
 
 if(WIN32)
-    set(CPACK_GENERATOR "NSIS")
     set(CPACK_NSIS_PACKAGE_NAME "MDReader ${PROJECT_VERSION}")
     set(CPACK_NSIS_FILE_NAME "MDReader-${PROJECT_VERSION}-win64.exe")
 endif()

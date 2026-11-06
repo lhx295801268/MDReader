@@ -24,6 +24,7 @@ set(UNIT_TESTS
     TitleBarFullscreenTest
     MermaidThemeTest
     MermaidInjectionTest
+    ViewerInjectionTest
     HtmlInlinerTest
 )
 
@@ -103,6 +104,14 @@ set(TEST_EXTRA_SOURCES_MermaidInjectionTest
     ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
     ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
 set(TEST_EXTRA_LIBS_MermaidInjectionTest libcmark-gfm-extensions_static)
+
+# ViewerInjectionTest asserts on what wrapHtml() puts in the page — which
+# scripts get injected and in what order — so it needs the renderer itself
+# (plus OutlineExtractor for the heading-id pass).
+set(TEST_EXTRA_SOURCES_ViewerInjectionTest
+    ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
+set(TEST_EXTRA_LIBS_ViewerInjectionTest libcmark-gfm-extensions_static)
 
 # MermaidTheme.h and HtmlInliner.h are header-only over QString/QFile — the
 # default Qt6::Core linkage is enough. Both are listed here for symmetry so a

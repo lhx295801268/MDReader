@@ -18,8 +18,13 @@
 #include <QApplication>
 #include <QTabWidget>
 #include <QAction>
+#include <QMenu>
+#include <QMenuBar>
 #include <QToolBar>
 #include <QToolButton>
+#include <QPlainTextEdit>
+#include <QFileOpenEvent>
+#include <QWebEngineView>
 #include <QMouseEvent>
 #include <QFileDialog>
 #include <QSettings>
@@ -47,6 +52,12 @@
 #include <QEvent>
 #include <QKeyEvent>
 
+// The version is injected by CMake (see src/CMakeLists.txt). The fallback
+// keeps this file compilable outside that build system.
+#ifndef MDREADER_VERSION
+#define MDREADER_VERSION "0.0.0"
+#endif
+
 namespace {
 constexpr auto kKeyLastFiles       = "session/lastFiles";
 constexpr auto kKeyCurrentIndex    = "session/currentIndex";
@@ -69,6 +80,46 @@ constexpr auto kValueThemeManual   = "manual";   // distinguishes from renderMod
 using mdreader::theme::kModeAuto;
 using mdreader::theme::kAutoLightTheme;
 using mdreader::theme::kAutoDarkTheme;
+
+// Phase 14 (macOS): name of the dynamic property that carries the English
+// source text of a menu entry. QAction::data() is already taken by the
+// theme id on some entries, so the menu strings live in their own
+// property.
+constexpr auto kMenuSrcProp = "mdr_src";
+
+// Phase 14 (macOS): re-run the translation for every string inside a menu,
+// recursing into submenus. QAction::setText() is not refreshed by Qt's
+// automatic LanguageChange handling, so the language switcher calls this
+// by hand.
+void retranslateMenuRecursive(QMenu* menu) {
+    if (!menu) return;
+    for (QAction* a : menu->actions()) {
+        if (a->isSeparator()) continue;
+        QString src = a->property(kMenuSrcProp).toString();
+        if (src.isEmpty()) src = a->data().toString();
+        if (!src.isEmpty()) {
+            a->setText(
+                QCoreApplication::translate("MainWindow", src.toUtf8().constData()));
+        }
+        if (QMenu* sub = a->menu()) retranslateMenuRecursive(sub);
+    }
+}
+
+// Phase 14 (macOS): run `fnEditor` on the focused Markdown editor, or
+// `fnPage` on the focused preview's page — whichever has the keyboard
+// focus. The Edit menu (Undo / Redo / Cut / Copy / Paste / Select All)
+// uses this so one set of menu entries serves both panes.
+template <typename FnEditor, typename FnPage>
+void withEditTarget(FnEditor&& fnEditor, FnPage&& fnPage) {
+    QWidget* w = QApplication::focusWidget();
+    if (auto* ed = qobject_cast<QPlainTextEdit*>(w)) {
+        fnEditor(ed);
+        return;
+    }
+    if (auto* view = qobject_cast<QWebEngineView*>(w)) {
+        if (QWebEnginePage* page = view->page()) fnPage(page);
+    }
+}
 }
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
@@ -176,15 +227,8 @@ void MainWindow::buildUi() {
     tabs_ = new QTabWidget(this);
     tabs_->setTabsClosable(true);
     tabs_->setMovable(true);
-    connect(tabs_, &QTabWidget::tabCloseRequested, this, [this](int idx) {
-        auto* tab = qobject_cast<DocumentTab*>(tabs_->widget(idx));
-        if (!tab) return;
-        std::shared_ptr<Document> doc = tab->editor()->document();
-        dm_->closeDocument(doc);
-        rc_->unbind(doc->path());
-        if (!doc->path().isEmpty()) fileWatcher_->unwatch(doc->path());
-        tabs_->removeTab(idx);
-    });
+    connect(tabs_, &QTabWidget::tabCloseRequested,
+            this, &MainWindow::closeTabAt);
     setCentralWidget(tabs_);
 
     auto* tb = addToolBar("Main");
@@ -197,12 +241,20 @@ void MainWindow::buildUi() {
     // Phase 10: every visible string in the toolbar is wrapped in tr() so
     // AppTranslator can substitute the Chinese mapping on LanguageChange.
     // New strings should be added both here AND to AppTranslator::zhTable_.
-    auto* newAct = tb->addAction(tr("New"));
-    auto* openAct = tb->addAction(tr("Open"));
-    auto* saveAct = tb->addAction(tr("Save"));
+    // Phase 14 (macOS): these live in the toolbar *and* in the menu bar.
+    // QKeySequence::New / Open / Save / Refresh / Close map to the
+    // platform's own conventions automatically — Cmd+N on macOS,
+    // Ctrl+N on Linux and Windows — so the same action object gives a
+    // macOS user the shortcuts they expect without a single #ifdef.
+    newAct_ = tb->addAction(tr("New"));
+    newAct_->setShortcut(QKeySequence::New);
+    openAct_ = tb->addAction(tr("Open"));
+    openAct_->setShortcut(QKeySequence::Open);
+    saveAct_ = tb->addAction(tr("Save"));
+    saveAct_->setShortcut(QKeySequence::Save);
     tb->addSeparator();
-    auto* pdfAct = tb->addAction(tr("Export PDF"));
-    auto* htmlAct = tb->addAction(tr("Export HTML"));
+    pdfAct_ = tb->addAction(tr("Export PDF"));
+    htmlAct_ = tb->addAction(tr("Export HTML"));
     tb->addSeparator();
     outlineAct_ = tb->addAction(tr("Outline"));
     outlineAct_->setCheckable(true); outlineAct_->setChecked(true);
@@ -210,34 +262,20 @@ void MainWindow::buildUi() {
     infoAct_->setCheckable(true); infoAct_->setChecked(true);
 
     themeMenu_ = new ThemeMenu(this);
-    auto* themeBtn = tb->addAction(tr("Theme"));
-    themeBtn->setMenu(themeMenu_);
+    themeBtn_ = tb->addAction(tr("Theme"));
+    themeBtn_->setMenu(themeMenu_);
     // Force InstantPopup on the toolbar button so a single click shows
     // the theme menu (default DelayedPopup requires press-and-hold).
     for (QObject* child : tb->children()) {
         auto* tbBtn = qobject_cast<QToolButton*>(child);
         if (!tbBtn) continue;
-        if (tbBtn->defaultAction() == themeBtn) {
+        if (tbBtn->defaultAction() == themeBtn_) {
             tbBtn->setPopupMode(QToolButton::InstantPopup);
             break;
         }
     }
-    connect(themeMenu_, &ThemeMenu::themeSelected, this, [this](QString t) {
-        // Phase 7: "auto" sentinel = follow the OS color scheme. Any other
-        // value is a concrete theme basename; remember it so future toggles
-        // back to manual mode restore the user's preference.
-        if (t == ThemeMenu::kAuto) {
-            themeMode_ = kModeAuto;
-        } else {
-            themeMode_  = kValueThemeManual;
-            userTheme_  = t;
-        }
-        theme_ = resolveEffectiveTheme();
-        rerenderAllTabs(theme_);
-        // Phase 12: also repaint every editor so the left pane tracks the
-        // theme flip, not just the right pane.
-        applyEditorTheme();
-    });
+    connect(themeMenu_, &ThemeMenu::themeSelected,
+            this, &MainWindow::selectTheme);
 
     tb->addSeparator();
     liveAct_ = tb->addAction(tr("Live"));
@@ -261,7 +299,7 @@ void MainWindow::buildUi() {
     // so it doesn't disrupt the natural left-to-right action layout. Two
     // entries: English (default) and 简体中文.
     tb->addSeparator();
-    auto* langBtn = tb->addAction(tr("Language"));
+    langBtn_ = tb->addAction(tr("Language"));
     QMenu* langMenu = new QMenu(this);
     langEnAct_ = langMenu->addAction(tr("English"));
     langZhAct_ = langMenu->addAction(tr("\xe7\xae\x80\xe4\xbd\x93\xe4\xb8\xad\xe6\x96\x87")); // 简体中文
@@ -270,7 +308,7 @@ void MainWindow::buildUi() {
     QActionGroup* langGrp = new QActionGroup(this);
     langGrp->addAction(langEnAct_); langGrp->addAction(langZhAct_);
     langGrp->setExclusive(true);
-    langBtn->setMenu(langMenu);
+    langBtn_->setMenu(langMenu);
     // Some Qt styles need an explicit popup mode to make a QAction with a
     // menu attached behave as a menu-button on the toolbar. The default
     // (DelayedPopup) shows the menu on press-and-hold; InstantPopup
@@ -280,22 +318,16 @@ void MainWindow::buildUi() {
     for (QObject* child : tb->children()) {
         auto* tbBtn = qobject_cast<QToolButton*>(child);
         if (!tbBtn) continue;
-        if (tbBtn->defaultAction() == langBtn) {
+        if (tbBtn->defaultAction() == langBtn_) {
             tbBtn->setPopupMode(QToolButton::InstantPopup);
             break;
         }
     }
     connect(langEnAct_, &QAction::triggered, this, [this]() {
-        qWarning("mdreader: language switch → English");
-        translator_->setLanguage(AppTranslator::English);
-        retranslateToolbar();
-        themeMenu_->setCurrent(themeMode_ == kModeAuto ? ThemeMenu::kAuto : userTheme_);
+        applyLanguage(AppTranslator::English);
     });
     connect(langZhAct_, &QAction::triggered, this, [this]() {
-        qWarning("mdreader: language switch → Chinese");
-        translator_->setLanguage(AppTranslator::Chinese);
-        retranslateToolbar();
-        themeMenu_->setCurrent(themeMode_ == kModeAuto ? ThemeMenu::kAuto : userTheme_);
+        applyLanguage(AppTranslator::Chinese);
     });
 
     // Phase 10: stash each toolbar action's source English text into
@@ -305,22 +337,23 @@ void MainWindow::buildUi() {
     auto stash = [](QAction* a, const char* src) {
         if (a) a->setData(QString::fromUtf8(src));
     };
-    stash(newAct,    "New");
-    stash(openAct,   "Open");
-    stash(saveAct,   "Save");
-    stash(pdfAct,    "Export PDF");
-    stash(htmlAct,   "Export HTML");
+    stash(newAct_,    "New");
+    stash(openAct_,   "Open");
+    stash(saveAct_,   "Save");
+    stash(pdfAct_,    "Export PDF");
+    stash(htmlAct_,   "Export HTML");
     stash(outlineAct_, "Outline");
     stash(infoAct_,  "Info");
-    stash(themeBtn,  "Theme");
+    stash(themeBtn_,  "Theme");
     stash(liveAct_,  "Live");
     stash(manualAct_,"Manual");
     stash(refreshAct_,"Refresh");
-    stash(langBtn,   "Language");
+    stash(langBtn_,   "Language");
     stash(langEnAct_,"English");
     // langZhAct_ uses 简体中文 as its source literal (no English fallback
     // needed — that's the canonical Chinese display name).
     refreshAct_->setEnabled(false);  // disabled while in Live mode (no Refresh needed)
+    refreshAct_->setShortcut(QKeySequence::Refresh);
     connect(refreshAct_, &QAction::triggered, this, [this] {
         auto* tab = currentTab();
         if (!tab) return;
@@ -329,11 +362,11 @@ void MainWindow::buildUi() {
         rc_->requestRender(doc->path(), doc->text(), theme_, /*force=*/true);
     });
 
-    connect(newAct, &QAction::triggered, this, &MainWindow::newDocument);
-    connect(openAct, &QAction::triggered, this, &MainWindow::openDocument);
-    connect(saveAct, &QAction::triggered, this, &MainWindow::saveCurrent);
-    connect(pdfAct, &QAction::triggered, this, &MainWindow::exportCurrentPdf);
-    connect(htmlAct, &QAction::triggered, this, &MainWindow::exportCurrentHtml);
+    connect(newAct_, &QAction::triggered, this, &MainWindow::newDocument);
+    connect(openAct_, &QAction::triggered, this, &MainWindow::openDocument);
+    connect(saveAct_, &QAction::triggered, this, &MainWindow::saveCurrent);
+    connect(pdfAct_, &QAction::triggered, this, &MainWindow::exportCurrentPdf);
+    connect(htmlAct_, &QAction::triggered, this, &MainWindow::exportCurrentHtml);
     connect(outlineAct_, &QAction::toggled, this, &MainWindow::toggleOutline);
     connect(infoAct_, &QAction::toggled, this, &MainWindow::toggleInfo);
 
@@ -354,13 +387,13 @@ void MainWindow::buildUi() {
     findToolBar->addWidget(findBar_);
     findToolBar->hide();  // shown on Ctrl+F
 
-    // Ctrl+F opens the find bar (or refocuses its input if already open).
-    // We use QShortcut with WindowShortcut context so it fires regardless
-    // of which child widget currently has focus, mirroring the behavior
-    // of every other editor (VS Code, Sublime, browsers, …).
-    auto* findShortcut = new QShortcut(QKeySequence::Find, this);
-    findShortcut->setContext(Qt::WindowShortcut);
-    connect(findShortcut, &QShortcut::activated, this, [this] {
+    // Ctrl+F (Cmd+F on macOS) opens the find bar (or refocuses its input
+    // if already open). We use a QAction instead of a bare QShortcut: a
+    // menu action carries the shortcut *and* shows it in the menu, which
+    // is what a macOS user expects from the Edit menu.
+    findAct_ = new QAction(tr("Find…"), this);
+    findAct_->setShortcut(QKeySequence::Find);
+    connect(findAct_, &QAction::triggered, this, [this] {
         auto* tab = currentTab();
         if (!tab) return;
         auto* editor = tab->editor();
@@ -382,6 +415,364 @@ void MainWindow::buildUi() {
             if (auto* editor = tab->editor()) editor->setFocus();
         }
     });
+
+    // Phase 14 (macOS): build the menu bar last, so it can reference every
+    // action created above.
+    buildMenuBar();
+}
+
+// ---------------------------------------------------------------------------
+// Phase 14 (macOS): menu bar
+// ---------------------------------------------------------------------------
+
+void MainWindow::buildMenuBar() {
+    // QMainWindow::menuBar() returns the window's menu bar. On macOS the
+    // Cocoa plugin promotes it to the *system* menu bar — the strip at the
+    // top of the screen — which is what a Mac user expects from an
+    // application. On Linux and Windows the same menu bar is drawn at the
+    // top of the window. Either way the code below is identical.
+    QMenuBar* mb = menuBar();
+    mb->setNativeMenuBar(true);
+
+    // Stash the English source text of every string we create so the
+    // language switcher can re-translate it later (QAction::setText() is
+    // not refreshed automatically when the translator is swapped).
+    auto stash = [](QAction* a, const char* src) {
+        if (a) a->setProperty(kMenuSrcProp, QString::fromUtf8(src));
+    };
+
+#ifdef Q_OS_MACOS
+    // --- Application menu --------------------------------------------------
+    // On macOS the first menu of the menu bar is the application menu: it
+    // carries the app's name plus About / Hide / Quit — the entries every
+    // Mac app has there and nowhere else.
+    QMenu* appMenu = mb->addMenu(tr("MDReader"));
+    appMenu->menuAction()->setProperty(kMenuSrcProp, QStringLiteral("MDReader"));
+    aboutAct_ = appMenu->addAction(tr("About MDReader"));
+    stash(aboutAct_, "About MDReader");
+    connect(aboutAct_, &QAction::triggered, this, [this] {
+        QMessageBox::about(
+            this, tr("About MDReader"),
+            tr("MDReader %1\n\nA cross-platform Markdown reader and editor.\n"
+               "Built with Qt %2 and cmark-gfm.")
+                .arg(QStringLiteral(MDREADER_VERSION),
+                     QStringLiteral(QT_VERSION_STR)));
+    });
+    appMenu->addSeparator();
+    hideAct_ = appMenu->addAction(tr("Hide MDReader"));
+    stash(hideAct_, "Hide MDReader");
+    // Qt::CTRL is the Command key on macOS and the Control key elsewhere,
+    // so the same sequence gives ⌘H on a Mac and Ctrl+H on Linux/Windows.
+    hideAct_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_H));
+    connect(hideAct_, &QAction::triggered, this, &QWidget::hide);
+    hideOthersAct_ = appMenu->addAction(tr("Hide Others"));
+    stash(hideOthersAct_, "Hide Others");
+    hideOthersAct_->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_H));
+    connect(hideOthersAct_, &QAction::triggered, this, [this] {
+        // "Hide Others" = hide every other window of this app.
+        for (QWidget* w : QApplication::topLevelWidgets()) {
+            if (w != this && w->isVisible()) w->hide();
+        }
+    });
+    showAllAct_ = appMenu->addAction(tr("Show All"));
+    stash(showAllAct_, "Show All");
+    connect(showAllAct_, &QAction::triggered, this, [this] {
+        show();
+        raise();
+        activateWindow();
+    });
+    appMenu->addSeparator();
+    quitAct_ = appMenu->addAction(tr("Quit MDReader"));
+    stash(quitAct_, "Quit MDReader");
+    quitAct_->setShortcut(QKeySequence::Quit);
+    connect(quitAct_, &QAction::triggered, qApp, &QApplication::quit);
+#endif
+
+    // --- File --------------------------------------------------------------
+    QMenu* fileMenu = mb->addMenu(tr("File"));
+    fileMenu->menuAction()->setProperty(kMenuSrcProp, QStringLiteral("File"));
+    fileMenu->addAction(newAct_);
+    fileMenu->addAction(openAct_);
+    fileMenu->addAction(saveAct_);
+    fileMenu->addSeparator();
+    fileMenu->addAction(pdfAct_);
+    fileMenu->addAction(htmlAct_);
+    fileMenu->addSeparator();
+    closeTabAct_ = fileMenu->addAction(tr("Close Tab"));
+    stash(closeTabAct_, "Close Tab");
+    closeTabAct_->setShortcut(QKeySequence::Close);
+    connect(closeTabAct_, &QAction::triggered, this, [this] {
+        if (tabs_) closeTabAt(tabs_->currentIndex());
+    });
+#ifndef Q_OS_MACOS
+    // On macOS Quit lives in the application menu instead.
+    fileMenu->addSeparator();
+    quitAct_ = fileMenu->addAction(tr("Quit"));
+    stash(quitAct_, "Quit");
+    quitAct_->setShortcut(QKeySequence::Quit);
+    connect(quitAct_, &QAction::triggered, qApp, &QApplication::quit);
+#endif
+
+    // --- Edit --------------------------------------------------------------
+    // The Undo…Select All entries act on whatever holds the keyboard focus:
+    // the Markdown editor (a QPlainTextEdit) or the preview (a
+    // QWebEngineView). The editor implements the operations itself; the
+    // preview goes through its QWebEnginePage, which exposes them as
+    // WebActions.
+    QMenu* editMenu = mb->addMenu(tr("Edit"));
+    editMenu->menuAction()->setProperty(kMenuSrcProp, QStringLiteral("Edit"));
+
+    undoAct_ = editMenu->addAction(tr("Undo"));
+    stash(undoAct_, "Undo");
+    undoAct_->setShortcut(QKeySequence::Undo);
+    connect(undoAct_, &QAction::triggered, this, [] {
+        withEditTarget([](auto* ed) { ed->undo(); },
+                       [](auto* page) { page->triggerAction(QWebEnginePage::Undo); });
+    });
+    redoAct_ = editMenu->addAction(tr("Redo"));
+    stash(redoAct_, "Redo");
+    redoAct_->setShortcut(QKeySequence::Redo);
+    connect(redoAct_, &QAction::triggered, this, [] {
+        withEditTarget([](auto* ed) { ed->redo(); },
+                       [](auto* page) { page->triggerAction(QWebEnginePage::Redo); });
+    });
+    editMenu->addSeparator();
+    cutAct_ = editMenu->addAction(tr("Cut"));
+    stash(cutAct_, "Cut");
+    cutAct_->setShortcut(QKeySequence::Cut);
+    connect(cutAct_, &QAction::triggered, this, [] {
+        withEditTarget([](auto* ed) { ed->cut(); },
+                       [](auto* page) { page->triggerAction(QWebEnginePage::Cut); });
+    });
+    copyAct_ = editMenu->addAction(tr("Copy"));
+    stash(copyAct_, "Copy");
+    copyAct_->setShortcut(QKeySequence::Copy);
+    connect(copyAct_, &QAction::triggered, this, [] {
+        withEditTarget([](auto* ed) { ed->copy(); },
+                       [](auto* page) { page->triggerAction(QWebEnginePage::Copy); });
+    });
+    pasteAct_ = editMenu->addAction(tr("Paste"));
+    stash(pasteAct_, "Paste");
+    pasteAct_->setShortcut(QKeySequence::Paste);
+    connect(pasteAct_, &QAction::triggered, this, [] {
+        withEditTarget([](auto* ed) { ed->paste(); },
+                       [](auto* page) { page->triggerAction(QWebEnginePage::Paste); });
+    });
+    selectAllAct_ = editMenu->addAction(tr("Select All"));
+    stash(selectAllAct_, "Select All");
+    selectAllAct_->setShortcut(QKeySequence::SelectAll);
+    connect(selectAllAct_, &QAction::triggered, this, [] {
+        withEditTarget([](auto* ed) { ed->selectAll(); },
+                       [](auto* page) { page->triggerAction(QWebEnginePage::SelectAll); });
+    });
+    editMenu->addSeparator();
+    editMenu->addAction(findAct_);
+
+    // --- View --------------------------------------------------------------
+    QMenu* viewMenu = mb->addMenu(tr("View"));
+    viewMenu->menuAction()->setProperty(kMenuSrcProp, QStringLiteral("View"));
+    viewMenu->addAction(outlineAct_);
+    viewMenu->addAction(infoAct_);
+    viewMenu->addSeparator();
+
+    // View ▸ Theme. A QMenu can only be plugged into one parent menu, so
+    // this submenu needs its own actions — they are kept in
+    // themeMenubarActions_ and ticked by setThemeChecked().
+    QMenu* themeSub = viewMenu->addMenu(tr("Theme"));
+    themeSub->menuAction()->setProperty(kMenuSrcProp, QStringLiteral("Theme"));
+    QActionGroup* themeGrp = new QActionGroup(themeSub);
+    themeGrp->setExclusive(true);
+    for (const QString& id : ThemeMenu::entries()) {
+        QAction* a = themeSub->addAction(
+            id == ThemeMenu::kAuto ? tr("Follow System")
+                                   : tr(id.toUtf8().constData()));
+        a->setCheckable(true);
+        a->setData(id);                              // theme id
+        a->setProperty(kMenuSrcProp,                 // source text for retranslate
+                       id == ThemeMenu::kAuto ? QStringLiteral("Follow System")
+                                             : id);
+        themeGrp->addAction(a);
+        themeMenubarActions_.append(a);
+        connect(a, &QAction::triggered, this, [this, id] { selectTheme(id); });
+    }
+
+    viewMenu->addSeparator();
+    viewMenu->addAction(liveAct_);
+    viewMenu->addAction(manualAct_);
+    viewMenu->addAction(refreshAct_);
+    viewMenu->addSeparator();
+
+    fullscreenAct_ = viewMenu->addAction(tr("Full Screen"));
+    stash(fullscreenAct_, "Full Screen");
+    fullscreenAct_->setCheckable(true);
+#ifdef Q_OS_MACOS
+    // macOS convention: ⌃⌘F (Qt::META is the Control key on macOS).
+    fullscreenAct_->setShortcut(QKeySequence(Qt::CTRL | Qt::META | Qt::Key_F));
+#else
+    fullscreenAct_->setShortcut(QKeySequence(Qt::Key_F11));
+#endif
+    connect(fullscreenAct_, &QAction::toggled, this, [this](bool on) {
+        if (on) {
+            setWindowState(windowState() | Qt::WindowFullScreen);
+        } else {
+            setWindowState(windowState() & ~Qt::WindowFullScreen);
+        }
+    });
+    viewMenu->addSeparator();
+
+    // View ▸ Language — again its own actions, for the same reason as the
+    // theme submenu above.
+    QMenu* langSub = viewMenu->addMenu(tr("Language"));
+    langSub->menuAction()->setProperty(kMenuSrcProp, QStringLiteral("Language"));
+    langMenubarEnAct_ = langSub->addAction(tr("English"));
+    stash(langMenubarEnAct_, "English");
+    langMenubarEnAct_->setCheckable(true);
+    langMenubarZhAct_ = langSub->addAction(tr("\xe7\xae\x80\xe4\xbd\x93\xe4\xb8\xad\xe6\x96\x87"));
+    stash(langMenubarZhAct_, "\xe7\xae\x80\xe4\xbd\x93\xe4\xb8\xad\xe6\x96\x87");
+    langMenubarZhAct_->setCheckable(true);
+    QActionGroup* langGrp = new QActionGroup(langSub);
+    langGrp->setExclusive(true);
+    langGrp->addAction(langMenubarEnAct_);
+    langGrp->addAction(langMenubarZhAct_);
+    connect(langMenubarEnAct_, &QAction::triggered, this, [this] {
+        applyLanguage(AppTranslator::English);
+    });
+    connect(langMenubarZhAct_, &QAction::triggered, this, [this] {
+        applyLanguage(AppTranslator::Chinese);
+    });
+
+#ifdef Q_OS_MACOS
+    // --- Window ------------------------------------------------------------
+    QMenu* windowMenu = mb->addMenu(tr("Window"));
+    windowMenu->menuAction()->setProperty(kMenuSrcProp, QStringLiteral("Window"));
+    QAction* minimizeAct = windowMenu->addAction(tr("Minimize"));
+    stash(minimizeAct, "Minimize");
+    minimizeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_M));   // ⌘M
+    connect(minimizeAct, &QAction::triggered, this, &QWidget::showMinimized);
+    QAction* bringAllAct = windowMenu->addAction(tr("Bring All to Front"));
+    stash(bringAllAct, "Bring All to Front");
+    connect(bringAllAct, &QAction::triggered, this, [this] {
+        show();
+        raise();
+        activateWindow();
+    });
+#endif
+
+    // Keep the Edit entries in sync with whatever has the focus, and
+    // reflect the current fullscreen state in the View menu.
+    connect(qApp, &QApplication::focusChanged, this,
+            [this](QWidget*, QWidget*) { updateEditActions(); });
+    updateEditActions();
+    if (fullscreenAct_) {
+        fullscreenAct_->setChecked(windowState() & Qt::WindowFullScreen);
+    }
+    setThemeChecked();
+    // The language switcher remembers the choice in the toolbar; mirror it
+    // into the menu-bar submenu.
+    if (langMenubarEnAct_ && translator_) {
+        const bool zh = translator_->currentLanguage() == AppTranslator::Chinese;
+        langMenubarEnAct_->setChecked(!zh);
+        langMenubarZhAct_->setChecked(zh);
+    }
+}
+
+void MainWindow::retranslateMenubar() {
+    // Same trick as retranslateToolbar(): re-run tr() for every string in
+    // the menu bar. The English source text is stashed in the action's
+    // "mdr_src" property (or, for the actions shared with the toolbar, in
+    // QAction::data()).
+    QMenuBar* mb = menuBar();
+    for (QAction* a : mb->actions()) {
+        QString src = a->property(kMenuSrcProp).toString();
+        if (src.isEmpty()) src = a->data().toString();
+        QMenu* m = a->menu();
+        if (!src.isEmpty()) {
+            const QString text =
+                QCoreApplication::translate("MainWindow", src.toUtf8().constData());
+            if (m) m->setTitle(text);
+            else   a->setText(text);
+        }
+        if (m) retranslateMenuRecursive(m);
+    }
+    // The theme submenu keeps its ids in QAction::data(), so its labels
+    // are re-derived from the id instead of the stashed source text.
+    for (QAction* a : themeMenubarActions_) {
+        const QString id = a->data().toString();
+        a->setText(id == ThemeMenu::kAuto ? tr("Follow System")
+                                          : tr(id.toUtf8().constData()));
+    }
+}
+
+void MainWindow::selectTheme(const QString& t) {
+    // Phase 7: "auto" sentinel = follow the OS color scheme. Any other
+    // value is a concrete theme basename; remember it so future toggles
+    // back to manual mode restore the user's preference.
+    if (t == ThemeMenu::kAuto) {
+        themeMode_ = kModeAuto;
+    } else {
+        themeMode_  = kValueThemeManual;
+        userTheme_  = t;
+    }
+    theme_ = resolveEffectiveTheme();
+    rerenderAllTabs(theme_);
+    // Phase 12: also repaint every editor so the left pane tracks the
+    // theme flip, not just the right pane.
+    applyEditorTheme();
+    // Tick the entry in both the toolbar dropdown and the menu bar.
+    setThemeChecked();
+}
+
+void MainWindow::setThemeChecked() {
+    const QString cur = themeMode_ == kModeAuto ? ThemeMenu::kAuto : userTheme_;
+    if (themeMenu_) themeMenu_->setCurrent(cur);
+    for (QAction* a : themeMenubarActions_) {
+        a->setChecked(a->data().toString() == cur);
+    }
+}
+
+void MainWindow::applyLanguage(AppTranslator::Language lang) {
+    if (!translator_) return;
+    qWarning("mdreader: language switch → %s",
+             lang == AppTranslator::Chinese ? "Chinese" : "English");
+    translator_->setLanguage(lang);
+    // Ask every registered widget to re-run its tr() calls …
+    translator_->retranslateRegistered();
+    // … then fix up the strings Qt does not refresh on its own: QAction
+    // texts and menu titles.
+    retranslateToolbar();
+    retranslateMenubar();
+    if (themeMenu_) themeMenu_->retranslate();
+    setThemeChecked();
+    const bool zh = lang == AppTranslator::Chinese;
+    if (langEnAct_) langEnAct_->setChecked(!zh);
+    if (langZhAct_) langZhAct_->setChecked(zh);
+    if (langMenubarEnAct_) langMenubarEnAct_->setChecked(!zh);
+    if (langMenubarZhAct_) langMenubarZhAct_->setChecked(zh);
+}
+
+void MainWindow::closeTabAt(int idx) {
+    if (!tabs_ || idx < 0 || idx >= tabs_->count()) return;
+    auto* tab = qobject_cast<DocumentTab*>(tabs_->widget(idx));
+    if (!tab) return;
+    std::shared_ptr<Document> doc = tab->editor()->document();
+    dm_->closeDocument(doc);
+    rc_->unbind(doc->path());
+    if (!doc->path().isEmpty()) fileWatcher_->unwatch(doc->path());
+    tabs_->removeTab(idx);
+}
+
+void MainWindow::updateEditActions() {
+    QWidget* w = QApplication::focusWidget();
+    const bool editable = qobject_cast<QPlainTextEdit*>(w) != nullptr;
+    const bool browsable = qobject_cast<QWebEngineView*>(w) != nullptr;
+    if (undoAct_)     undoAct_->setEnabled(editable || browsable);
+    if (redoAct_)     redoAct_->setEnabled(editable || browsable);
+    if (copyAct_)     copyAct_->setEnabled(editable || browsable);
+    if (pasteAct_)    pasteAct_->setEnabled(editable || browsable);
+    if (selectAllAct_)selectAllAct_->setEnabled(editable || browsable);
+    // Cutting only makes sense where there is a text selection, so it
+    // stays limited to the editor.
+    if (cutAct_)     cutAct_->setEnabled(editable);
 }
 
 void MainWindow::newDocument() {
@@ -649,11 +1040,11 @@ void MainWindow::loadSettings() {
         if (QFile::exists(f)) dm_->openFile(f);
     }
 
-    // Tell ThemeMenu which entry to tick: "auto" selects Follow System,
-    // anything else selects the matching concrete theme.
-    themeMenu_->setCurrent(themeMode_ == kModeAuto
-                           ? ThemeMenu::kAuto
-                           : userTheme_);
+    // Tell the theme menus which entry to tick: "auto" selects Follow
+    // System, anything else selects the matching concrete theme. The
+    // helper covers both the toolbar dropdown and the View ▸ Theme
+    // submenu in the menu bar.
+    setThemeChecked();
 
     manualAct_->setChecked(renderMode_ == kValueManual);
     liveAct_->setChecked(renderMode_ != kValueManual);
@@ -680,6 +1071,10 @@ void MainWindow::saveSettings() {
     }
     s.setValue(kKeyOutlineVisible, outlineVisible_);
     s.setValue(kKeyInfoVisible,    infoVisible_);
+    // On macOS QSettings writes a plist and only flushes it when the
+    // QSettings object is destroyed — which does not happen if the app is
+    // killed. sync() makes sure the session is on disk right away.
+    s.sync();
 }
 
 QString MainWindow::resolveEffectiveTheme() const {
@@ -852,11 +1247,39 @@ void MainWindow::changeEvent(QEvent* e) {
             // so the recursive call is a no-op and we don't loop.
             setWindowState(target);
         }
+        // Phase 14 (macOS): keep the View ▸ Full Screen tick in sync when
+        // the fullscreen state was changed from somewhere else (title-bar
+        // double-click, Esc).
+        if (fullscreenAct_) {
+            fullscreenAct_->setChecked(windowState() & Qt::WindowFullScreen);
+        }
         // Consume the event so the base class doesn't try to apply our
         // already-handled target a second time (harmless but wasteful).
         return;
     }
     QMainWindow::changeEvent(e);
+}
+
+bool MainWindow::event(QEvent* e) {
+    // Phase 14 (macOS): when MDReader is already running and the user
+    // double-clicks a .md file in Finder, macOS does not start a second
+    // process and does not pass the path in argv — it asks the running
+    // application to open the file by sending an Apple Event, which Qt
+    // turns into a QFileOpenEvent. QApplication forwards that event to
+    // the top-level widgets, so handling it here is what makes "Open
+    // With ▸ MDReader" work on an already-running instance.
+    if (e->type() == QEvent::FileOpen) {
+        auto* foe = static_cast<QFileOpenEvent*>(e);
+        QString path = foe->file();
+        if (path.isEmpty() && foe->url().isLocalFile()) {
+            path = foe->url().toLocalFile();
+        }
+        if (!path.isEmpty()) {
+            openFileFromCli(path);
+            return true;
+        }
+    }
+    return QMainWindow::event(e);
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* e) {

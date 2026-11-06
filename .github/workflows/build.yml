@@ -34,6 +34,39 @@ jobs:
           name: MDReader-Linux-deb
           path: build/MDReader-*.deb
 
+  macos-dmg:
+    # macos-15 is macOS Sequoia (15.x) — the release MDReader targets.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5.3'
+          host: 'macos'
+          target: 'desktop'
+          arch: 'clang_64'
+          # WebEngine is a separate module in the Qt installer.
+          modules: 'qtwebengine'
+          cache: true
+      - name: CMake configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+      - name: Build
+        run: cmake --build build -j
+      # The WebEngine-driven integration tests need a GPU/display context
+      # that a headless macOS runner does not provide, so only the pure
+      # unit tests and the (WebEngine-free) menu-bar test run here.
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure -R "unit_|MenuBar"
+      - name: Package (drag-and-drop .dmg)
+        run: cd build && cpack -G DragNDrop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MDReader-macOS-dmg
+          path: build/MDReader-*-macOS.dmg
+
   windows-exe:
     runs-on: windows-2022
     steps:

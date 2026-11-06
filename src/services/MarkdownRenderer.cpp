@@ -117,6 +117,10 @@ QString MarkdownRenderer::wrapHtml(const QString& bodyHtml, const QString& theme
     // default inline math is $$...$$, so a diagram whose labels contain a
     // dollar-delimited span could otherwise be typeset in place while
     // mermaid is still reading that element's text as its source.
+    //
+    // The zoom/pan pass runs last: MathJax and mermaid both inject nodes
+    // into the body, and any image that arrives with them should be
+    // click-zoomable too.
     static const char kBootstrapJs[] = R"JS(
 window.addEventListener('DOMContentLoaded', function () {
   var diagrams = window.MDReaderMermaid;
@@ -131,6 +135,8 @@ window.addEventListener('DOMContentLoaded', function () {
   }
   if (window.hljs) hljs.highlightAll();
   if (diagrams) mathDone.then(function () { diagrams.render(); });
+  var zoom = window.MDReaderPreviewZoom;
+  if (zoom) zoom.enhance();
 });
 )JS";
 
@@ -139,6 +145,12 @@ window.addEventListener('DOMContentLoaded', function () {
     page += QStringLiteral("<style>") + themeCss + QStringLiteral("</style>");
     page += QStringLiteral("<script src='qrc:/vendor/highlight/highlight.min.js'></script>");
     page += QStringLiteral("<script src='qrc:/vendor/mathjax/tex-mml-chtml.js'></script>");
+    // The zoom/pan viewer is injected on EVERY page, not just pages with a
+    // diagram: a document can hold a high-resolution screenshot that is just
+    // as unreadable when squeezed into the column. It is ~14 KB, which is
+    // noise next to the 3.5 MB mermaid bundle below.
+    page += QStringLiteral("<script src='qrc:/viewer/viewer-overlay.js'></script>");
+    page += QStringLiteral("<script src='qrc:/viewer/preview-zoom.js'></script>");
     if (hasMermaid) {
         page += QStringLiteral("<script src='qrc:/vendor/mermaid/mermaid.min.js'></script>");
         page += QStringLiteral("<script src='qrc:/vendor/mermaid/mermaid-init.js'></script>");

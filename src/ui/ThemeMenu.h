@@ -21,6 +21,19 @@ public:
     /// Concrete-theme basenames the menu can emit (excludes the "auto"
     /// sentinel). Order matches the order actions appear in the menu.
     QStringList available() const { return themes_; }
+
+    /// Every selectable entry, including the "auto" sentinel ("Follow
+    /// System") as the first one. Phase 14 (macOS): the View ▸ Theme
+    /// submenu in the menu bar is built from this list — a QMenu can only
+    /// be plugged into one parent menu, so the menu bar needs its own
+    /// action objects rather than reusing this widget's.
+    static QStringList entries();
+
+    /// Phase 14 (macOS): re-run tr() for the menu title and every entry.
+    /// QAction::setText() is not refreshed automatically when the
+    /// translator is swapped, so the language switcher calls this.
+    void retranslate();
+
 signals:
     void themeSelected(const QString& theme);
 private:

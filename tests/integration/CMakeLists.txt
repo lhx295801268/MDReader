@@ -18,6 +18,8 @@ set(INTEGRATION_TESTS
     ExternalReloadTest
     RenderCoordinatorWorkerTest
     MermaidRenderTest
+    ViewerZoomTest
+    MenuBarTest
     grab_screenshots
 )
 
@@ -140,6 +142,43 @@ set(TEST_EXTRA_SOURCES_MermaidRenderTest
 
 set(TEST_EXTRA_LIBS_MermaidRenderTest Qt6::WebEngineWidgets)
 
+# ViewerZoomTest drives the zoom/pan viewer in a real browser page: it opens
+# the overlay from an image click, exercises the zoom / fit / 1:1 / drag
+# controls and checks the exported page keeps the viewer. Same source set as
+# MermaidRenderTest — PreviewView plus the renderer that builds the page.
+set(TEST_EXTRA_SOURCES_ViewerZoomTest
+    ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/LoadingOverlay.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp)
+
+set(TEST_EXTRA_LIBS_ViewerZoomTest Qt6::WebEngineWidgets)
+
+# MenuBarTest (Phase 14, macOS) builds a real MainWindow and inspects its
+# menu bar. That means linking the whole application except main.cpp.
+set(TEST_EXTRA_SOURCES_MenuBarTest
+    ${CMAKE_SOURCE_DIR}/src/app/MainWindow.cpp
+    ${CMAKE_SOURCE_DIR}/src/documents/Document.cpp
+    ${CMAKE_SOURCE_DIR}/src/documents/DocumentManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/AppTranslator.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/FileWatcher.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/ImageHandler.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/OutlineExtractor.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/RenderCoordinator.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/WordCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/DocumentTab.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/EditorView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/FindBar.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/InfoView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/LoadingOverlay.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/OutlineView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/PreviewView.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/ThemeMenu.cpp)
+
+set(TEST_EXTRA_LIBS_MenuBarTest
+    Qt6::WebEngineWidgets Qt6::Widgets Qt6::Concurrent)
+
 # cmark-gfm-extensions references cmark-gfm symbols (e.g. cmark_arena_push),
 # so extensions must precede cmark-gfm_static on the link line. This matches
 # src/CMakeLists.txt. Unused by HtmlExportTest but cheap to keep here.
@@ -161,6 +200,8 @@ set(_INTEGRATION_RESOURCE_FILES
     ${CMAKE_SOURCE_DIR}/src/resources/vendor/mathjax/tex-mml-chtml.js
     ${CMAKE_SOURCE_DIR}/src/resources/vendor/mermaid/mermaid.min.js
     ${CMAKE_SOURCE_DIR}/src/resources/vendor/mermaid/mermaid-init.js
+    ${CMAKE_SOURCE_DIR}/src/resources/viewer/viewer-overlay.js
+    ${CMAKE_SOURCE_DIR}/src/resources/viewer/preview-zoom.js
 )
 
 foreach(test_name ${INTEGRATION_TESTS})
@@ -175,6 +216,10 @@ foreach(test_name ${INTEGRATION_TESTS})
         ${cmark-gfm_SOURCE_DIR}/src
         ${cmark-gfm_SOURCE_DIR}/extensions
         ${cmark-gfm_BINARY_DIR}/src)
+    # Same version string the application is built with (MainWindow.cpp
+    # shows it in the About dialog).
+    target_compile_definitions(${test_name} PRIVATE
+        MDREADER_VERSION="${PROJECT_VERSION}")
     qt_add_resources(${test_name} "integration_${test_name}_resources"
         PREFIX "/"
         BASE "${CMAKE_SOURCE_DIR}/src/resources"
@@ -184,7 +229,7 @@ endforeach()
 
 # Integration tests use QtWebEngineWidgets, which needs a GUI platform.
 # Use offscreen in headless CI environments (libxcb-cursor0 is missing here).
-set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest integration_ExternalReloadTest integration_RenderCoordinatorWorkerTest integration_MermaidRenderTest PROPERTIES
+set_tests_properties(integration_HtmlExportTest integration_EditToPreviewTest integration_ThemeSwitchTest integration_ExternalReloadTest integration_RenderCoordinatorWorkerTest integration_MermaidRenderTest integration_ViewerZoomTest integration_MenuBarTest PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # integration_grab_screenshots is a manual helper, not a CI test: QWebEngineView
