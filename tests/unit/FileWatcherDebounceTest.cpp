@@ -24,7 +24,11 @@ void FileWatcherDebounceTest::five_events_within_300ms_emit_once() {
         QFile g(path); g.open(QIODevice::WriteOnly); g.write(QByteArray("v") + char('0' + i)); g.close();
         QThread::msleep(40);
     }
-    QTest::qWait(800);
+    // The debounce timer runs for 500 ms and the writes span 200 ms, so the
+    // emit is due at ~700 ms. macOS delivers the file-system events with
+    // some latency, which pushes that further out — wait long enough that
+    // the result does not depend on how busy the machine is.
+    QTest::qWait(1500);
     QCOMPARE(spy.count(), 1);
 }
 
