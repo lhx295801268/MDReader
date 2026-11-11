@@ -42,3 +42,6 @@ Testing/
 
 # Tool logs
 aqtinstall.log
+
+# macOS
+.DS_Store
