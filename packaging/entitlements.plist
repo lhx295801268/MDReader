@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the macOS .app bundle.
+
+  Qt WebEngine is a Chromium build: it JIT-compiles the renderer in a
+  separate process (QtWebEngineProcess) and loads the app's frameworks
+  into it. macOS' sandbox refuses both without the exceptions below, and
+  the symptom is not a crash but a *silent* failure — the app starts,
+  the preview stays blank, and the only hint in the log is
+
+      sandbox_extension_issue_file_to_process failed for <app>: 1
+      (Operation not permitted)
+
+  These four keys are what Chromium-based apps ship with:
+
+    allow-jit                        the renderer JITs its own code
+    allow-unsigned-executable-memory  the renderer maps JIT pages
+    disable-library-validation        the helper loads the app's
+                                      frameworks, which are signed with
+                                      a different identity
+    allow-dyld-environment-variables  lets the app read QT_* variables
+                                      that influence the WebEngine
+                                      process (e.g. QTWEBENGINE_CHROMIUM_FLAGS)
+
+  A release build signed with a Developer ID certificate and notarized
+  needs the same entitlements — they do not weaken the signature, they
+  describe the app's actual behaviour.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+</dict>
+</plist>

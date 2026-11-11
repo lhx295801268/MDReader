@@ -89,8 +89,17 @@ python3 -m aqt install-qt mac desktop 6.5.3 clang_64 -m qtwebengine -O ~/Qt
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$HOME/Qt/6.5.3/macos"
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/bin/mdreader your.md
+./build/bin/MDReader.app/Contents/MacOS/MDReader your.md
 ```
+
+> macOS 上产物是一个 `.app` 包(不是裸二进制),可执行文件在
+> `build/bin/MDReader.app/Contents/MacOS/` 里。
+>
+> `macdeployqt` 只在 **官方 Qt** 发行版上能正确部署 WebEngine:用
+> Homebrew 的 `qtbase` / `qtwebengine` 构建时,`QtWebEngineProcess`
+> 辅助进程会保留指向 `/opt/homebrew/...` 的绝对依赖,打出来的 `.dmg`
+> 在没装 Homebrew Qt 的机器上无法渲染预览。上面的 aqtinstall 方式即
+> 为避开这一点。
 
 打 `.dmg` 包(`macdeployqt` 会在 install 阶段自动运行,把 Qt 框架拷进 `.app`):
 

@@ -4,8 +4,11 @@
   Info.plist template for the macOS .app bundle.
 
   CMake configures this file (the .plist.in suffix is what triggers that) and
-  substitutes the @MACOSX_BUNDLE_*@ variables below. The spelling of those
+  substitutes the MACOSX_BUNDLE_* variables below. The spelling of those
   variables matches the ones CMake itself defines for the default template.
+  Note the braces: CMake's plist generator resolves dollar-brace VAR
+  references and leaves a bare at-sign VAR at-sign untouched, so the
+  at-sign spelling silently produced an empty value for every key.
 
   Beyond the standard keys this adds the two things a macOS user expects from
   a Markdown reader:
@@ -24,27 +27,27 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleExecutable</key>
-  <string>@MACOSX_BUNDLE_EXECUTABLE_NAME@</string>
+  <string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
   <key>CFBundleIconFile</key>
-  <string>@MACOSX_BUNDLE_ICON_FILE@</string>
+  <string>${MACOSX_BUNDLE_ICON_FILE}</string>
   <key>CFBundleIdentifier</key>
-  <string>@MACOSX_BUNDLE_GUI_IDENTIFIER@</string>
+  <string>${MACOSX_BUNDLE_GUI_IDENTIFIER}</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>@MACOSX_BUNDLE_BUNDLE_NAME@</string>
+  <string>${MACOSX_BUNDLE_BUNDLE_NAME}</string>
   <key>CFBundleDisplayName</key>
   <string>MDReader</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>@MACOSX_BUNDLE_SHORT_VERSION_STRING@</string>
+  <string>${MACOSX_BUNDLE_SHORT_VERSION_STRING}</string>
   <key>CFBundleVersion</key>
-  <string>@MACOSX_BUNDLE_BUNDLE_VERSION@</string>
+  <string>${MACOSX_BUNDLE_BUNDLE_VERSION}</string>
   <key>CFBundleGetInfoString</key>
-  <string>@MACOSX_BUNDLE_INFO_STRING@</string>
+  <string>${MACOSX_BUNDLE_INFO_STRING}</string>
   <key>NSHumanReadableCopyright</key>
-  <string>@MACOSX_BUNDLE_COPYRIGHT@</string>
+  <string>${MACOSX_BUNDLE_COPYRIGHT}</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.productivity</string>
   <!-- Retina: the preview is a Chromium view, so it must render at device

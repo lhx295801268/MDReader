@@ -88,6 +88,12 @@ if(APPLE)
         MACOSX_BUNDLE_LONG_VERSION_STRING "${PROJECT_VERSION}"
         MACOSX_BUNDLE_ICON_FILE "mdreader.icns"
         MACOSX_BUNDLE_COPYRIGHT "MDReader contributors · MIT"
+        MACOSX_BUNDLE_INFO_STRING "MDReader ${PROJECT_VERSION} · Markdown reader/editor"
+        # The bundle *directory* is named after the target's OUTPUT_NAME, so
+        # it defaults to "mdreader.app". The .dmg is supposed to show
+        # "MDReader.app" (cmake/MacDmg.cmake looks for exactly that name).
+        # The executable inside the bundle follows the same name.
+        OUTPUT_NAME "MDReader"
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/packaging/Info.plist.in")
 
     # The icon has to sit in Contents/Resources for CFBundleIconFile to find
@@ -100,7 +106,11 @@ if(APPLE)
 
     # The bundle goes to the root of the payload so the .dmg shows a single
     # draggable "MDReader.app" next to the Applications alias.
-    install(TARGETS mdreader RUNTIME DESTINATION .)
+    # BUNDLE (not RUNTIME) is the destination kind for a MACOSX_BUNDLE
+    # target: CMake errors out with "install TARGETS given no BUNDLE
+    # DESTINATION" otherwise, and the .app never reaches the staging
+    # area where macdeployqt expects to find it.
+    install(TARGETS mdreader BUNDLE DESTINATION .)
 
     # Convenience target for regenerating the icon on a Mac:
     #   cmake --build build --target mdreader_regen_icon

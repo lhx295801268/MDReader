@@ -54,11 +54,28 @@ else()
     )
 endif()
 # Upstream uses CMARK_* options (not CMARK_GFM_*). Disable shared/tests/examples
-# to keep our build lean; install rules remain but are harmless because we
-# never invoke `make install` (FetchContent_MakeAvailable embeds it).
+# to keep our build lean.
 set(CMARK_SHARED OFF CACHE BOOL "" FORCE)
 set(CMARK_TESTS OFF CACHE BOOL "" FORCE)
+# cmark-gfm ships its own install() rules: the library, its headers, a
+# pkg-config file, a man page and the `cmark-gfm` CLI. We link it
+# statically and never install it, but CPack *does* run the install
+# script — so without this the .dmg/.deb payload would contain a
+# bin/cmark-gfm binary and a full include/ tree next to the app.
+#
+# CMAKE_SKIP_INSTALL_RULES drops those rules, but it also stops CMake
+# from generating the dependency's cmake_install.cmake — while the
+# parent's install script still include()s it, which makes
+# `cmake --install` abort with "include could not find requested file".
+# Writing an empty stub in its place keeps the include valid while
+# installing nothing from the dependency.
+set(_cmark_saved_skip_install "${CMAKE_SKIP_INSTALL_RULES}")
+set(CMAKE_SKIP_INSTALL_RULES ON)
 FetchContent_MakeAvailable(cmark-gfm)
+set(CMAKE_SKIP_INSTALL_RULES "${_cmark_saved_skip_install}")
+file(WRITE "${cmark-gfm_BINARY_DIR}/cmake_install.cmake"
+    "# Intentionally empty: cmark-gfm's install rules are suppressed\n"
+    "# (see the CMAKE_SKIP_INSTALL_RULES block in the top-level CMakeLists).\n")
 
 add_subdirectory(src)
 
