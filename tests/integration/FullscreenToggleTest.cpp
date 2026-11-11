@@ -45,8 +45,17 @@ void FullscreenToggleTest::leaving_fullscreen_stays_out() {
     w.setWindowState(w.windowState() & ~Qt::WindowFullScreen);
     QTest::qWait(1200);
 
-    QVERIFY2(!(w.windowState() & Qt::WindowFullScreen),
-             "the window bounced back into fullscreen");
+    const bool bouncedBack = w.windowState() & Qt::WindowFullScreen;
+    const bool zoomRestored = w.windowState() & Qt::WindowMaximized;
+    if (!bouncedBack && !zoomRestored) {
+        // No window manager restored a zoomed frame (the offscreen QPA
+        // platform used in CI has none), so the transition that used to
+        // bounce the window back never happens here. The deterministic
+        // guard for that is unit_FullscreenRedirectTest; this test is the
+        // end-to-end proof on a real desktop.
+        QSKIP("this platform does not restore a zoomed frame — the bounce cannot occur");
+    }
+    QVERIFY2(!bouncedBack, "the window bounced back into fullscreen");
 }
 
 QTEST_MAIN(FullscreenToggleTest)

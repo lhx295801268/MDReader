@@ -1,7 +1,9 @@
 name: build
 on:
   push:
-    branches: [main]
+    # The repository's branch is `master`; `main` is kept so that a
+    # renamed/default branch also triggers the build.
+    branches: [main, master]
   pull_request:
 
 jobs:
@@ -65,6 +67,61 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: MDReader-macOS-dmg
+          path: build/MDReader-*-macOS.dmg
+
+  macos-dmg-homebrew:
+    # The same artifact, but built against the Qt that Homebrew installs —
+    # the path a developer takes when Homebrew is already on the machine
+    # (see the README). Homebrew builds its frameworks with absolute
+    # paths, which macdeployqt does not rewrite inside the nested
+    # WebEngine helper, so the packaging has to repair them
+    # (cmake/MacBundleRepair.cmake). This job keeps that path working and
+    # checks that the shipped .dmg does not depend on the build machine.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt (Homebrew)
+        run: |
+          brew install qtbase qtwebengine
+      - name: CMake configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          -DCMAKE_PREFIX_PATH="$(brew --prefix)"
+      - name: Build
+        run: cmake --build build -j
+      # Same subset as the job above: the WebEngine-driven integration
+      # tests need a GPU/display context that a headless macOS runner does
+      # not provide.
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure -R "unit_|MenuBar"
+      - name: Package (drag-and-drop .dmg)
+        run: cd build && cpack -G DragNDrop
+      - name: Verify the shipped bundle is self-contained
+        run: |
+          set -euo pipefail
+          DMG=$(ls build/MDReader-*-macOS.dmg)
+          MOUNT=$(mktemp -d)
+          hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT"
+          APP="$MOUNT/MDReader.app"
+          HELPER="$APP/Contents/Frameworks/QtWebEngineCore.framework/Versions/A/Helpers/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess"
+          status=0
+          for bin in "$APP/Contents/MacOS/MDReader" "$HELPER"; do
+            # @rpath / @executable_path stay inside the bundle, /System and
+            # /usr/lib are macOS' own libraries. Anything else is a path
+            # into the build machine.
+            deps=$(otool -L "$bin" | awk '/compatibility version/ {print $1}' \
+                   | grep -vE '^(@|/System/|/usr/lib/)' || true)
+            if [ -n "$deps" ]; then
+              echo "::error::$bin still depends on the build machine's Qt:"
+              echo "$deps"
+              status=1
+            fi
+          done
+          hdiutil detach "$MOUNT"
+          exit $status
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MDReader-macOS-dmg-homebrew
           path: build/MDReader-*-macOS.dmg
 
   windows-exe:
