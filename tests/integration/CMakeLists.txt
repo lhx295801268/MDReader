@@ -21,6 +21,7 @@ set(INTEGRATION_TESTS
     ViewerZoomTest
     MenuBarTest
     FullscreenToggleTest
+    FileOpenWatcherTest
     grab_screenshots
 )
 
@@ -186,6 +187,11 @@ set(TEST_EXTRA_SOURCES_FullscreenToggleTest
     ${TEST_EXTRA_SOURCES_MenuBarTest})
 set(TEST_EXTRA_LIBS_FullscreenToggleTest
     ${TEST_EXTRA_LIBS_MenuBarTest})
+
+# FileOpenWatcherTest exercises the header-only app/FileOpenWatcher.h
+# helper, so it needs no application sources.
+set(TEST_EXTRA_SOURCES_FileOpenWatcherTest)
+set(TEST_EXTRA_LIBS_FileOpenWatcherTest)
 
 # cmark-gfm-extensions references cmark-gfm symbols (e.g. cmark_arena_push),
 # so extensions must precede cmark-gfm_static on the link line. This matches
