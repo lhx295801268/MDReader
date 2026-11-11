@@ -63,8 +63,11 @@ AppTranslator::AppTranslator(QObject* parent) : QTranslator(parent) {
         {"Find:",         "\xe6\x9f\xa5\xe6\x89\xbe\xef\xbc\x9a"},  // 查找:
         {"Type to search\xe2\x80\xa6", "\xe8\xbe\x93\xe5\x85\xa5\xe5\x85\xb3\xe9\x94\xae\xe5\xad\x97\xe6\x90\x9c\xe7\xb4\xa2\xe2\x80\xa6"}, // 输入关键字搜索…
         {"Previous match (Shift+Enter)", "\xe4\xb8\x8a\xe4\xb8\x80\xe4\xb8\xaa\xe5\x8c\xb9\xe9\x85\x8d\xef\xbc\x88Shift+Enter\xef\xbc\x89"}, // 上一个匹配(Shift+Enter)
-        {"Next match (Enter)", "\xe4\xb8\x8b\xe4\xb8\x80\xe4\xb8\xaa\xe5\x8c\xb9\xe9\x85\x8d\xef\xbc\x88Enter\xef\xbc\x89"}, // 下一个匹配(Enter)
-        {"Close (Esc)",   "\xe5\x85\xb3\xe9\x97\xad\xef\xbc\x88Esc\xef\xbc\x89"}, // 关闭(Esc)
+        // The literal is split after "\xbc\x88" because a \x escape consumes
+        // every hex digit that follows it — "\x88Enter" would be read as the
+        // out-of-range value 0x88E and fail to compile.
+        {"Next match (Enter)", "\xe4\xb8\x8b\xe4\xb8\x80\xe4\xb8\xaa\xe5\x8c\xb9\xe9\x85\x8d\xef\xbc\x88" "Enter\xef\xbc\x89"}, // 下一个匹配(Enter)
+        {"Close (Esc)",   "\xe5\x85\xb3\xe9\x97\xad\xef\xbc\x88" "Esc\xef\xbc\x89"}, // 关闭(Esc)
         {"no match",      "\xe6\x97\xa0\xe5\x8c\xb9\xe9\x85\x8d"},  // 无匹配
         // Phase 14 (macOS): menu bar. The menu titles and the entries that
         // only exist there (the application menu, the Edit / View / Window
