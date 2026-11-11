@@ -22,6 +22,7 @@ set(UNIT_TESTS
     EditorPaletteTest
     FindBarTest
     TitleBarFullscreenTest
+    FullscreenRedirectTest
     MermaidThemeTest
     MermaidInjectionTest
     ViewerInjectionTest
@@ -45,6 +46,7 @@ set(TEST_EXTRA_SOURCES_FileWatcherDebounceTest ${CMAKE_SOURCE_DIR}/src/services/
 set(TEST_EXTRA_SOURCES_ThemeMenuTest
     ${CMAKE_SOURCE_DIR}/src/ui/ThemeMenu.cpp)
 # (MainWindowThemeTest only needs the header-only ThemeResolution.h — no .cpp.)
+# (FullscreenRedirectTest only needs the header-only FullscreenRedirect.h — no .cpp.)
 set(TEST_EXTRA_SOURCES_RenderFrameDropTest
     ${CMAKE_SOURCE_DIR}/src/services/RenderCoordinator.cpp
     ${CMAKE_SOURCE_DIR}/src/services/MarkdownRenderer.cpp

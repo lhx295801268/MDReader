@@ -7,6 +7,7 @@
 #include <memory>
 #include "services/FileWatcher.h"
 #include "services/AppTranslator.h"
+#include "app/FullscreenRedirect.h"
 
 class QMimeData;
 class QDropEvent;
@@ -208,14 +209,11 @@ private:
     QAction* showAllAct_ = nullptr;
     QAction* aboutAct_ = nullptr;
 
-    // Phase 15 (macOS): set while the window is on its way out of
-    // fullscreen. macOS restores the window's *zoomed* frame right after
-    // it leaves fullscreen, and Qt reports that as a plain maximize
-    // transition (old state = NoState) — indistinguishable from the
-    // title-bar double-click we redirect into fullscreen. Redirecting it
-    // would shrink the window for a frame and snap it straight back, so
-    // one maximize transition is let through untouched.
-    bool suppressMaximizeRedirect_ = false;
+    // Phase 15 (macOS): the rules that turn a WM-driven maximize into
+    // fullscreen, plus the "on the way out of fullscreen" state that
+    // keeps macOS' zoom restore from bouncing the user back in. See
+    // app/FullscreenRedirect.h.
+    mdreader::window::FullscreenRedirect fullscreenRedirect_;
 
     // Phase 14 (macOS): the Edit menu's Undo…Select All entries. They
     // forward to whichever widget holds the keyboard focus, so the same
