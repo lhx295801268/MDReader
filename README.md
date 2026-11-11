@@ -68,25 +68,32 @@ mdreader your-notes.md
 ```bash
 git clone --recursive https://github.com/your-org/MDReader.git
 cd MDReader
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 cmake --build build -j
-ctest --test-dir build --output-on-failure   # 可选
+ctest --test-dir build --output-on-failure   # 需要 -DBUILD_TESTING=ON 才会构建测试
 ./build/bin/mdreader your.md
 ```
 
 ### macOS
 
-需要 Qt 6.5+(**含 WebEngine 模块**)。用 [aqtinstall](https://github.com/miuruaqt/aqtinstall) 安装最省事:
+需要 Qt 6.5+(**含 WebEngine 模块**)。两条路都支持,任选其一。
+
+**Homebrew**(系统已有就跳过;Apple Silicon 原生二进制):
+
+```bash
+brew install qtbase qtwebengine
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/opt/homebrew -DBUILD_TESTING=ON
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+./build/bin/MDReader.app/Contents/MacOS/MDReader your.md
+```
+
+**官方 Qt SDK**(版本固定,CI 用的就是这条;需要 x86_64 时也用它):
 
 ```bash
 python3 -m pip install aqtinstall
 python3 -m aqt install-qt mac desktop 6.5.3 clang_64 -m qtwebengine -O ~/Qt
-```
-
-然后:
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$HOME/Qt/6.5.3/macos"
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$HOME/Qt/6.5.3/macos" -DBUILD_TESTING=ON
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ./build/bin/MDReader.app/Contents/MacOS/MDReader your.md
@@ -95,11 +102,16 @@ ctest --test-dir build --output-on-failure
 > macOS 上产物是一个 `.app` 包(不是裸二进制),可执行文件在
 > `build/bin/MDReader.app/Contents/MacOS/` 里。
 >
-> `macdeployqt` 只在 **官方 Qt** 发行版上能正确部署 WebEngine:用
-> Homebrew 的 `qtbase` / `qtwebengine` 构建时,`QtWebEngineProcess`
-> 辅助进程会保留指向 `/opt/homebrew/...` 的绝对依赖,打出来的 `.dmg`
-> 在没装 Homebrew Qt 的机器上无法渲染预览。上面的 aqtinstall 方式即
-> 为避开这一点。
+> Homebrew 的 Qt 把框架依赖写成绝对路径(`/opt/homebrew/...`),
+> `macdeployqt` 不会改写嵌套的 WebEngine 辅助进程,直接打出来的
+> `.dmg` 只在装了同一个 Qt 的机器上能渲染预览。仓库里的
+> `cmake/MacBundleRepair.cmake` 会在打包阶段把它改成 `@rpath`,并
+> 检查 bundle 是否还残留外部依赖(有就直接让打包失败,
+> `-DMDREADER_ALLOW_EXTERNAL_QT_DEPS=ON` 可放行)。官方 Qt 发行版
+> 不需要这一步,那条路没有这个坑。
+>
+> Homebrew 各模块的次版本号可能不同(例如 `qtbase` 6.12 配
+> `qtwebengine` 6.11),这在 Qt 6 内是兼容的。
 
 打 `.dmg` 包(`macdeployqt` 会在 install 阶段自动运行,把 Qt 框架拷进 `.app`):
 
