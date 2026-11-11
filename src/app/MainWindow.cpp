@@ -1236,9 +1236,36 @@ void MainWindow::changeEvent(QEvent* e) {
     // to apply (see app/TitleBarFullscreen.h for the rules and rationale).
     if (e->type() == QEvent::WindowStateChange) {
         auto* wse = static_cast<QWindowStateChangeEvent*>(e);
-        const Qt::WindowStates target =
-            mdreader::window::redirectTitleBarMaximize(windowState(),
-                                                       wse->oldState());
+        const Qt::WindowStates now = windowState();
+        const Qt::WindowStates old = wse->oldState();
+
+        // Phase 15 (macOS): leaving fullscreen. macOS restores the
+        // window's zoomed frame a moment later and Qt reports *that* as a
+        // plain maximize transition (old state = NoState) — the same
+        // shape as the title-bar double-click we redirect into fullscreen.
+        // Redirecting it would shrink the window for a frame and snap it
+        // straight back, so remember that we are on our way out and let
+        // exactly one maximize transition through untouched.
+        if ((old & Qt::WindowFullScreen) && !(now & Qt::WindowFullScreen)) {
+            suppressMaximizeRedirect_ = true;
+            // Safety net: if the zoom restore never arrives (it doesn't on
+            // every platform), don't suppress a later legitimate maximize
+            // forever.
+            QTimer::singleShot(1000, this, [this] {
+                suppressMaximizeRedirect_ = false;
+            });
+        }
+
+        Qt::WindowStates target =
+            mdreader::window::redirectTitleBarMaximize(now, old);
+        if (suppressMaximizeRedirect_) {
+            target = now;
+            if (now & Qt::WindowMaximized) {
+                // That was the zoom restore macOS performs on the way out
+                // of fullscreen — consumed, later maximizes redirect again.
+                suppressMaximizeRedirect_ = false;
+            }
+        }
         if (target != windowState()) {
             // setWindowState fires WindowStateChange a second time. On
             // that re-entry the helper returns `target` unchanged

@@ -22,6 +22,20 @@ namespace mdreader::window {
 
 inline Qt::WindowStates redirectTitleBarMaximize(Qt::WindowStates now,
                                                   Qt::WindowStates old) {
+    // Leaving fullscreen must never be redirected.
+    //
+    // On macOS a window that comes out of fullscreen returns *zoomed*,
+    // which Qt reports as WindowMaximized. "old had FullScreen, now has
+    // Maximized" therefore looks exactly like the WM maximizing a window
+    // — and redirecting it bounces the user straight back into
+    // fullscreen: the window shrinks for a frame and snaps back, so
+    // double-clicking again appears to do nothing. This applies to every
+    // way out of fullscreen (title-bar double-click, Esc, the View menu).
+    const bool leavingFullScreen = (old & Qt::WindowFullScreen)
+                                && !(now & Qt::WindowFullScreen);
+    if (leavingFullScreen) {
+        return now;
+    }
     // Trigger condition: WM just transitioned into WindowMaximized from a
     // non-maximized state. Covers "normal → maximize" (the typical
     // title-bar dbl-click path on X11/Wayland) and "minimized → maximize"

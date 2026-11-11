@@ -20,6 +20,7 @@ set(INTEGRATION_TESTS
     MermaidRenderTest
     ViewerZoomTest
     MenuBarTest
+    FullscreenToggleTest
     grab_screenshots
 )
 
@@ -178,6 +179,13 @@ set(TEST_EXTRA_SOURCES_MenuBarTest
 
 set(TEST_EXTRA_LIBS_MenuBarTest
     Qt6::WebEngineWidgets Qt6::Widgets Qt6::Concurrent)
+
+# FullscreenToggleTest (macOS) drives the real MainWindow through a
+# fullscreen round-trip, so it needs the same sources as MenuBarTest.
+set(TEST_EXTRA_SOURCES_FullscreenToggleTest
+    ${TEST_EXTRA_SOURCES_MenuBarTest})
+set(TEST_EXTRA_LIBS_FullscreenToggleTest
+    ${TEST_EXTRA_LIBS_MenuBarTest})
 
 # cmark-gfm-extensions references cmark-gfm symbols (e.g. cmark_arena_push),
 # so extensions must precede cmark-gfm_static on the link line. This matches

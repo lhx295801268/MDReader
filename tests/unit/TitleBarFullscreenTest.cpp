@@ -32,6 +32,12 @@ private slots:
     // unmaximize.
     void fullscreen_to_normal_no_change();
 
+    // macOS: leaving fullscreen brings the window back *zoomed*, so Qt
+    // reports WindowMaximized. That looks like the WM maximizing a
+    // window, and redirecting it would bounce the user back into
+    // fullscreen — the window shrinks for a frame and snaps back.
+    void fullscreen_to_maximized_no_change();
+
     // Calling the helper twice with the same (now, old) must return the
     // same value both times. Property: redirect(now, old) is a pure
     // function — no internal state.
@@ -86,6 +92,18 @@ void TitleBarFullscreenTest::fullscreen_to_normal_no_change() {
     const Qt::WindowStates old = Qt::WindowFullScreen;
     const Qt::WindowStates now = Qt::WindowNoState;
     QCOMPARE(redirectTitleBarMaximize(now, old), now);
+}
+
+void TitleBarFullscreenTest::fullscreen_to_maximized_no_change() {
+    // macOS reports a window that leaves fullscreen as WindowMaximized
+    // (it comes back zoomed). The helper must recognize "we are on our
+    // way out of fullscreen" and leave the state alone — otherwise the
+    // redirect fires and the window snaps straight back to fullscreen.
+    const Qt::WindowStates old = Qt::WindowFullScreen | Qt::WindowActive;
+    const Qt::WindowStates now = Qt::WindowMaximized | Qt::WindowActive;
+    const Qt::WindowStates got = redirectTitleBarMaximize(now, old);
+    QCOMPARE(got, now);
+    QVERIFY(!(got & Qt::WindowFullScreen));
 }
 
 void TitleBarFullscreenTest::idempotent_repeated_calls() {
